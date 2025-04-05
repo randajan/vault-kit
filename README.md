@@ -96,7 +96,10 @@ socket.on("vault:remove", (id) => forget(id));
 | `read()`       | `async (id, noCache?) => content`  | Reads from local or remote           | ✅     |
 | `write()`      | `async (id, content) => content`   | Saves content and emits change       | ✅     |
 | `resync()`     | `async (id) => content`            | Forces re-read from remote           | ✅     |
-| `list()`       | `() => string[]`                   | Returns list of locally known IDs    | ❌     |
+| `has()`        | `(id) => boolean`                   | Returns true if locally exists    | ❌     |
+| `keys()`       | `() => string[]`                   | Returns list of locally known IDs    | ❌     |
+| `values()`     | `() => object[]`                   | Returns list of locally known values | ❌     |
+| `entries()`    | `() => [string, object][]`         | Returns list of locally known entries    | ❌     |
 | `on()`         | `(fn) => unsubscribeFn`            | Subscribes to all changes `(id, content)` | ❌ |
 | `once()`       | `(fn) => unsubscribeFn`            | Subscribes once to next change       | ❌     |
 

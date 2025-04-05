@@ -67,10 +67,10 @@ export class Vault {
         return this.read(id, true);
     }
 
-    list() {
-        const _p = _privates.get(this);
-        return Array.from(_p.store.keys());
-    }
+    has(id) { return _privates.get(this).store.has(id); }
+    keys() { return _privates.get(this).store.keys(); }
+    values() { return _privates.get(this).store.values(); }
+    entries() { return _privates.get(this).store.entries(); }
 
     on(fn) {
         const { handlers } = _privates.get(this);
