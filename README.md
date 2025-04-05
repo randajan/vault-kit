@@ -60,7 +60,7 @@ These functions can be provided to the constructor:
 
 | Option         | Type                    | Args                          | Return                             | Default            |
 |----------------|-------------------------|-------------------------------|-------------------------------------|--------------------|
-| `create`       | `(content) => Promise<[id, content]>` | Used to create a new ID | Required for `vault.create()`      | ❌ Required for `create()` |
+| `create`       | `(content) => Promise<[id, content, result]>` | Used to create a new ID | Required for `vault.create()`      | ❌ Required for `create()` |
 | `read`         | `(id) => Promise<content>`           | Load content from remote     | Used by `vault.read()`             | `undefined` (noop) |
 | `write`        | `(id, content) => Promise<content>`  | Save content remotely        | Used by `vault.write()`            | `undefined` (noop) |
 | `init`         | `(set, forget) => void`              | Called once after setup      | Used for wiring remote listeners   | `undefined` (noop)         |

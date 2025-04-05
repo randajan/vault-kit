@@ -42,9 +42,9 @@ export class Vault {
         if (!remoteCreate) {
             throw new Error("Vault.create(...) is not available: no 'create' function provided in options.");
         }
-        const [id, realContent] = await remoteCreate(content);
+        const [id, realContent, result] = await remoteCreate(content);
         set(id, realContent);
-        return [id, realContent];
+        return result;
     }
 
     async read(id, noCache=false) {

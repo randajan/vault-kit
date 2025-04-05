@@ -23,16 +23,23 @@
     "LICENSE"
   ],
   "keywords": [
-    "fetch",
-    "json",
-    "http",
-    "api",
-    "network",
-    "request",
-    "rest",
-    "ajax",
-    "wrapper",
-    "error-handling"
+    "vault",
+    "store",
+    "sync",
+    "cache",
+    "data",
+    "files",
+    "minimal",
+    "lightweight",
+    "storage",
+    "memory",
+    "virtual",
+    "state",
+    "data-sync",
+    "universal",
+    "js",
+    "javascript",
+    "kit"
   ],
   "homepage": "https://github.com/randajan/vault-kit",
   "bugs": {
