@@ -1,0 +1,46 @@
+{
+  "name": "@randajan/vault-kit",
+  "version": "1.0.0",
+  "description": "A tiny and universal data vault that behaves like a writable file system. Store, sync, forget. Works on client and server.",
+  "repository": "randajan/vault-kit",
+  "type": "module",
+  "main": "dist/cjs/index.cjs",
+  "module": "dist/esm/index.mjs",
+  "exports": {
+    ".": {
+      "import": "./dist/esm/index.mjs",
+      "require": "./dist/cjs/index.cjs"
+    }
+  },
+  "license": "MIT",
+  "peerDependencies": {},
+  "devDependencies": {
+    "@randajan/simple-lib": "^3.0.2"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "fetch",
+    "json",
+    "http",
+    "api",
+    "network",
+    "request",
+    "rest",
+    "ajax",
+    "wrapper",
+    "error-handling"
+  ],
+  "homepage": "https://github.com/randajan/vault-kit",
+  "bugs": {
+    "url": "https://github.com/randajan/vault-kit/issues"
+  },
+  "author": {
+    "name": "Jan Randa",
+    "email": "jnranda@gmail.com",
+    "url": "https://www.linkedin.com/in/randajan/"
+  }
+}
