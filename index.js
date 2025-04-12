@@ -1,6 +1,6 @@
 import slib, { argv } from "@randajan/simple-lib";
 
-const { isBuild} = argv;
+const { isBuild } = argv;
 
 slib(isBuild, {
     mode: "web",
