@@ -5,13 +5,13 @@ export const _privates = new WeakMap();
 export class Vault {
 
     constructor(options={}) {
-        const { name, readonly, act, react, emitter, remote } = options;
-        const store = new Store({act, react, emitter});
+        const { name, readonly, onRequest, onResponse, emitter, remote } = options;
+        const store = new Store({onRequest, onResponse, emitter});
 
         const _p = { name, readonly, store, remote };
 
         if (remote?.init) {
-            remote.init((id, data, ...args)=>store.setReady("remote", id, data, args));
+            remote.init((data, id, ...args)=>store.setReady("remote", data, id, args));
         }
 
         _privates.set(this, _p);
@@ -27,14 +27,14 @@ export class Vault {
         const { store, remote } = _privates.get(this);
         const c = store.get(id);
         if (c.status === "ready") { return c.data; }
-        if (remote) { return store.resolve(remote.pull, "pull", id, undefined, args); } 
+        if (remote) { return store.resolve(remote.pull, "pull", undefined, id, args); } 
     }
 
-    async set(id, data, ...args) {
+    async set(data, id, ...args) {
         const { name, readonly, remote, store } = _privates.get(this);
         if (readonly) { throw new Error(`${name} is readonly`); }
-        if (remote) { return store.resolve(remote.push, "push", id, data, args); }
-        return store.setReady("local", id, data, args);
+        if (remote) { return store.resolve(remote.push, "push", data, id, args); }
+        return store.setReady("local", data, id, args);
     }
 
 

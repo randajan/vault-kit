@@ -3,16 +3,16 @@ import { toFn } from "./tools";
 //status
 //init, push, pull, error, ready
 
-const resolveOut = async (store, exe, status, id, data, args)=>{
-    const prom = status === "push" ? exe(id, data, ...args) : exe(id, ...args);
-    return store.setReady(status, id, await prom, args);
+const resolveOut = async (store, exe, status, data, id, args)=>{
+    const prom = status === "push" ? exe(data, id, ...args) : exe(id, ...args);
+    return store.setReady(status, await prom, id, args);
 };
 
-const resolveIn = async (store, exe, status, id, data, args)=>{
-    const prom = resolveOut(store, exe, status, id, data, args)
-        .catch(err=>{ throw store.set("error", id, err, args); });
+const resolveIn = async (store, exe, status, data, id, args)=>{
+    const prom = resolveOut(store, exe, status, data, id, args)
+        .catch(err=>{ throw store.set("error", err, id, args); });
 
-    return store.set(status, id, prom, args);
+    return store.set(status, prom, id, args);
 }
 
 export class Store extends Map {
@@ -29,7 +29,7 @@ export class Store extends Map {
 
     get(id) { return super.get(id) || { status:"init" } }
 
-    set(status, id, to, args) {
+    set(status, to, id, args) {
         const { emit, traits:{ emitter } } = this
         let c = super.get(id);
         if (!c) { super.set(id, c = {}); }
@@ -40,29 +40,29 @@ export class Store extends Map {
         c.data = to;
         if (status === "ready") { delete c.lastData; } else { c.lastData = from; }
         
-        if (emitter) { emitter(emit, id, {status, to, from}, ...args); }
-        else { emit(id, Object.freeze({status, to, from}), ...args); }
+        if (emitter) { emitter(emit, {id, status, to, from}, ...args); }
+        else { emit(Object.freeze({id, status, to, from}), ...args); }
 
         return to;
     }
 
-    async setReady(mode, id, data, args) { //mode = push|pull|remote|local
-        const { act, react } = this.traits;
+    async setReady(mode, data, id, args) { //mode = push|pull|remote|local
+        const { onResponse, onRequest } = this.traits;
 
-        let result = data;
+        let res = data;
+        
+        if (onRequest && mode === "local") { [data, res] = await onRequest(data, id, ...args); }
+        if (onResponse && mode === "push") { [data, res] = await onResponse(data, id, ...args); }
 
-        if (react && mode === "local") { [data, result] = await react(id, data, ...args); }
-        if (act && mode === "push") { [data, result] = await act(id, data, ...args); }
+        this.set("ready", data, id, args);
 
-        this.set("ready", id, data, args);
-
-        return result;
+        return res;
     }
 
-    async resolve(exe, status, id, data, args) {
+    async resolve(exe, status, data, id, args) {
         const c = this.get(id);
-        if (!c.status.startsWith("pu")) { return resolveIn(this, exe, status, id, data, args); }
-        return c.data = c.data.finally(_=>resolveIn(this, exe, status, id, data, args));
+        if (!c.status.startsWith("pu")) { return resolveIn(this, exe, status, data, id, args); }
+        return c.data = c.data.finally(_=>resolveIn(this, exe, status, data, id, args));
     }
 
     on(fn) {

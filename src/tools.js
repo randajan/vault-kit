@@ -11,39 +11,36 @@ export const toObj = (any, errorName)=>to("object", any, errorName);
 export const toBol = (any, errorName)=>to("boolean", any, errorName);
 export const toStr = (any, errorName)=>to("string", any, errorName);
 
-const toFnx = (hasId, any, errorName)=>{
+const toFnx = (hasMany, any, errorName)=>{
     const fn = toFn(any, errorName);
-    return (!fn || hasId) ? fn : (id, ...args)=>fn(...args);
+    return (!fn || hasMany) ? fn : (data, id, ...args)=>fn(data, ...args);
 }
 
-const formatRemote = (hasId, remote)=>{
+const formatRemote = (hasMany, remote)=>{
     remote = toObj(remote);
     if (!remote) { return; }
 
     const init = remote.init = toFn(remote.init);           //(set)=>{ set(); }
-    remote.push = toFnx(hasId, remote.push);                //(id, data)=>data;
+    remote.push = toFnx(hasMany, remote.push);                //(data, id)=>data;
     remote.pull = toFn(remote.pull, "option.remote.pull");  //(id)=>data;
 
-    if (!hasId && init) {
-        remote.init = (set)=>init((...args)=>set(undefined, ...args));
-    }
+    if (!hasMany && init) { remote.init = set=>init(toFnx(hasMany, set)); }
 
     return remote;
 }
 
-export const formatOpt = (hasId, opt={})=>{
+export const formatOpt = (hasMany, opt={})=>{
     opt = toObj(opt) || {};
 
-    const remote = opt.remote = formatRemote(hasId, opt.remote);
+    const remote = opt.remote = formatRemote(hasMany, opt.remote);
 
+    opt.hasMany = hasMany;
     opt.name = toStr(opt.name) || "Vault";
     opt.readonly = (remote && !remote.push) || toBol(opt.readonly) || false;
 
-    opt.act = toFnx(hasId, opt.act);
-    opt.react = toFnx(hasId, opt.react);
-    const emitter = opt.emitter = toFn(opt.emitter);
-    
-    if (!hasId && emitter) { opt.emitter = (emit, id, ...args)=>emitter(emit, ...args); }
+    opt.onRequest = toFnx(hasMany, opt.onRequest);
+    opt.onResponse = toFnx(hasMany, opt.onResponse);
+    opt.emitter = toFn(opt.emitter);
 
     return opt;
 }

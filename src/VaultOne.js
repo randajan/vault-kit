@@ -12,7 +12,7 @@ export class VaultOne extends Vault {
 
     async get(...args) { return super.get(undefined, ...args); }
 
-    async set(data, ...args) { return super.set(undefined, data, ...args); }
+    async set(data, ...args) { return super.set(data, undefined, ...args); }
     reset() { return super.reset(undefined); }
 
     on(fn) { _privates.get(this).store.on(fn); }

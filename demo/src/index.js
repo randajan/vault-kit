@@ -3,28 +3,30 @@ import createVault from "../../dist/esm/index.mjs";
 
 const sleep = async ms=>new Promise(res=>setTimeout(res, ms));
 
-const remote = window.remote = createVault(true, {
-    react:(id, req)=>{
-        console.log({req});
+const remote = window.remote = createVault({
+    hasMany:true,
+    onRequest:(req, id)=>{
+        console.log("REQUEST", {req});
         const { action, content } = req;
         const data = action === "write" ? content : action === "rnd" ? Math.random() : null;
-        return [data, {isOk:true, data}];
+        return [data, {isOk:true, data}]; //this is response
     },
-    emitter:(emit, id, ctx, ...args)=>{
-        if (ctx.status === "ready") { emit(id, ctx, ...args); }
+    emitter:(emit, ctx, ...args)=>{
+        if (ctx.status === "ready") { emit(ctx, ...args); }
     }
 });
 
-const local = window.local = createVault(false, {
-    act:(res)=>{
+const local = window.local = createVault({
+    readonly:true,
+    onResponse:(res)=>{ //here comes response
         console.log({res});
-        const { isOk, data } = res;
+        const { data } = res;
         return [data, res];
     },
     emitter:(emit, ctx, ...args)=>{
         if (ctx.status !== "ready") { return; }
-        ctx.same = ctx.to === ctx.from;
-        emit(ctx, ...args);
+        const same = ctx.to === ctx.from;
+        if (!same) { emit(ctx, ...args); }
     },
     remote:{
         pull:async _=>{
@@ -33,10 +35,10 @@ const local = window.local = createVault(false, {
         },
         push:async (data)=>{
             console.log("LOCAL-PUSH", data);
-            return sleep(2000).then(_=>remote.set("foo", data));
+            return sleep(2000).then(_=>remote.set(data, "foo"));
         },
         init:set=>{
-            remote.on((id, {status, to, from})=>{
+            remote.on(({status, to, from, id})=>{
                 console.log("LOCAL DBG=", id, to);
                 if (id === "foo") { set(to); }
             });
@@ -47,9 +49,9 @@ const local = window.local = createVault(false, {
 
 
 
-setInterval(_=>{    
-    remote.set("foo", {action:"rnd"});
-}, 3000);
+// setInterval(_=>{    
+//     remote.set({action:"rnd"}, "foo");
+// }, 3000);
 
 remote.on((...a)=>console.log("REMOTE", ...a));
 local.on((...a)=>console.log("LOCAL", ...a));

@@ -17,16 +17,15 @@ export class VaultMany extends Vault {
         let proms;
 
         for (const [id, {status, data, lastData}] of entries) {
-            const res = exe(status, id, status === "ready" ? data : lastData);
+            const res = exe({data:status === "ready" ? data : lastData, id, status});
             if (res instanceof Promise) { (proms ??= []).push(res); }
-            
         }
 
         if (proms) { return Promise.all(proms); }
     }
 
     collect(collector, exe) {
-        const res = this.forEach((status, id, data)=>exe(collector, status, id, data));
+        const res = this.forEach(ctx=>exe(collector, ctx));
         return res instanceof Promise ? res.then(_=>collector) : collector;
     }
 
