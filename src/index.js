@@ -1,9 +1,5 @@
+import { Vault } from "./class/Vault";
 
-import { VaultMany } from "./VaultMany";
-import { VaultOne } from "./VaultOne";
+export { Vault }
 
-export { VaultMany, VaultOne }
-
-export default (options={})=>{
-    return (options?.hasMany) ? new VaultMany(options) : new VaultOne(options);
-}
+export default (options={})=>new Vault(options);

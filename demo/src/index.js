@@ -12,22 +12,19 @@ const remote = window.remote = createVault({
         return [data, {isOk:true, data}]; //this is response
     },
     emitter:(emit, ctx, ...args)=>{
-        if (ctx.status === "ready") { emit(ctx, ...args); }
-    }
+        console.log("REMOTE", ctx.status, ctx, ...args);
+        if (ctx.status !== "ready") { return; }
+        emit(ctx, ...args);
+    },
+    reactions:{
+        rnd:()=>{},
+        write:()=>{}
+    },
+    dataPropLocal:"data"
 });
 
 const local = window.local = createVault({
     readonly:true,
-    onResponse:(res)=>{ //here comes response
-        console.log({res});
-        const { data } = res;
-        return [data, res];
-    },
-    emitter:(emit, ctx, ...args)=>{
-        if (ctx.status !== "ready") { return; }
-        const same = ctx.to === ctx.from;
-        if (!same) { emit(ctx, ...args); }
-    },
     remote:{
         pull:async _=>{
             console.log("LOCAL-PULL");
@@ -38,12 +35,25 @@ const local = window.local = createVault({
             return sleep(2000).then(_=>remote.set(data, "foo"));
         },
         init:set=>{
-            remote.on(({status, to, from, id})=>{
+            remote.on(({status, to, from}, id)=>{
                 console.log("LOCAL DBG=", id, to);
                 if (id === "foo") { set(to); }
             });
         }
-    }
+    },
+    onResponse:(res)=>{ //here comes response
+        console.log({res});
+        const { data } = res;
+        return [data, res];
+    },
+    emitter:(emit, ctx, ...args)=>{
+        console.log("LOCAL", ctx.status, ctx, ...args);
+        if (ctx.status !== "ready") { return; }
+        const same = ctx.to === ctx.from;
+        if (!same) { emit(ctx, ...args); }
+    },
+    actions:["rnd", "write"],
+    dataPropRemote:"data"
 });
 
 
@@ -53,5 +63,5 @@ const local = window.local = createVault({
 //     remote.set({action:"rnd"}, "foo");
 // }, 3000);
 
-remote.on((...a)=>console.log("REMOTE", ...a));
-local.on((...a)=>console.log("LOCAL", ...a));
+// remote.on((...a)=>console.log("REMOTE", ...a));
+// local.on((...a)=>console.log("LOCAL", ...a));
