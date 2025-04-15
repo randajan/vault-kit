@@ -4,7 +4,7 @@ import createVault from "../../dist/esm/index.mjs";
 const sleep = async ms=>new Promise(res=>setTimeout(res, ms));
 
 const remote = window.remote = createVault({
-    ttl:5000,
+    ttl:30000,
     hasMany:true,
     emitter:(emit, ctx, ...args)=>{
         console.log("REMOTE", ctx.status, ctx, ...args);
@@ -19,19 +19,21 @@ const remote = window.remote = createVault({
 });
 
 const local = window.local = createVault({
+    ttl:10000,
     remote:{
+        timeout:2000,
         pull:async _=>{
             console.log("LOCAL-PULL");
-            return sleep(2000).then(_=>remote.get("foo"));
+            return sleep(1000).then(_=>remote.get("foo"));
         },
         push:async (data)=>{
             console.log("LOCAL-PUSH", data);
-            return sleep(2000).then(_=>remote.set(data, "foo"));
+            return sleep(3000).then(_=>remote.set(data, "foo"));
         },
         init:set=>{
-            remote.on(({status, to, from}, id)=>{
-                console.log("LOCAL DBG=", id, to);
-                if (id === "foo") { set(to); }
+            remote.on(({status, data}, id)=>{
+                console.log("LOCAL DBG=", id, data);
+                if (id === "foo") { set(data); }
             });
         }
     },

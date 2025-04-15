@@ -32,3 +32,12 @@ export const toFold = (fold, errorName, req=false)=>{
     if (prop) { return (r=>[r[prop], r]); }
     if (req) { return (r=>[r, r]); }
 }
+
+
+
+export const timeout = (ms, msg="Timeout")=>new Promise((_, rej)=>setTimeout(_=>rej(new Error(msg)), ms));
+
+export const withTimeout = (fn, ms, msg="Timeout")=>{
+    if (!fn || !ms) { return fn; }
+    return (...args)=>Promise.race([ fn(...args), timeout(ms, msg) ]);
+}

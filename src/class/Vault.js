@@ -15,33 +15,22 @@ export class Vault {
         _privates.set(this, _p);
     }
 
-    getStatus(...a) { return _privates.get(this).store.get(...a)?.status || "init"; }
-    getData(...a) {
-        const c = _privates.get(this).store.get(...a);
-        return !c ? undefined : c.status === "ready" ? c.data : c.lastData; 
-    }
+    getStatus(...a) { return _privates.get(this).store.pick(...a)?.status || "init"; }
+    getData(...a) { return _privates.get(this).store.pick(...a)?.data; }
 
-    async get(...a) {
-        const _p = _privates.get(this);
-        const c = _p.store.get(...a);
-        if (c?.status === "ready") { return c.data; }
-        if (_p.remote) { return _p.resolve("pull", undefined, ...a); } 
-    }
-
+    async get(...a) { return _privates.get(this).store.get(...a); }
     async set(data, ...a) {
-        const _p = _privates.get(this);
-        if (_p.readonly) { throw new Error(`${_p.name} is readonly`); }
-        if (_p.remote) { return _p.resolve("push", data, ...a); }
-        
-        return _p.setReady("local", data, ...a);
+        const { readonly, store } = _privates.get(this);
+        if (readonly) { throw new Error(`Set is not allowed`); }
+        return store.set(data, ...a);
     }
 
     async do(action, params, ...a) {
-        return this.set({action, params}, ...a);
+        return _privates.get(this).store.set({action, params}, ...a);
     }
 
     reset(...a) {
-        _privates.get(this).store.reset(...a);
+        _privates.get(this).store.reset("init", ...a);
         return this;
     }
 
@@ -57,16 +46,16 @@ export class Vault {
         const { store, hasMany } = _privates.get(this);
 
         if (!hasMany) {
-            const { status, data, lastData } = store.get();
-            return exe({ status, data:status === "ready" ? data : lastData });
+            const { status, data } = store.pick();
+            return exe({ status, data });
         }
 
         let proms;
 
         for (const id of store.keys()) {
-            const { status, data, lastData } = store.get(id);
+            const { status, data } = store.pick(id);
             if (status === "init") { continue; }
-            const res = exe({status, data:status === "ready" ? data : lastData}, id);
+            const res = exe({status, data}, id);
             if (res instanceof Promise) { (proms ??= []).push(res); }
         }
 

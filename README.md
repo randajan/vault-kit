@@ -1,4 +1,3 @@
-
 # @randajan/vault-kit
 
 [![NPM](https://img.shields.io/npm/v/@randajan/vault-kit.svg)](https://www.npmjs.com/package/@randajan/vault-kit) [![JavaScript Style Guide](https://img.shields.io/badge/code_style-standard-brightgreen.svg)](https://standardjs.com)
@@ -33,144 +32,125 @@ It acts like a **virtual file system** where each file is identified by an `id`.
 - **Events** triggered on any change
 - **Automatic Caching** of the last known state
 
-You can choose between:
-
-- `VaultOne`: handles a single (unnamed) unit of data
-- `VaultMany`: handles multiple entries identified by `id`
-
-To illustrate, VaultMany is used on the server to store context and create an interface for multiple clients. The clients then use VaultOne.
+The `id` is passed as the second argument and is optional if `hasMany` is not used.
 
 ---
 
 ## 🧩 Options
 
-All options are passed into the vault constructor. Use the default export:
+All options are passed into the vault constructor:
 
 ```js
-import createVault from "@randajan/vault-kit";
+import createVault, { Vault } from "@randajan/vault-kit";
 
-const vault = createVault({ /* options */ });
+const vault = new Vault({ /* options */ }) || createVault({ /* options */ });
 ```
 
 ### General Options
 
 | Option        | Type                      | Description |
 |---------------|---------------------------|-------------|
-| `hasMany`     | `boolean`                 | `true` = `VaultMany`, `false` = `VaultOne` |
-| `name`        | `string`                  | Optional name for debugging/errors |
-| `readonly`    | `boolean`                 | Prevents local writes if `true` |
+| `hasMany`     | `boolean`                 | Allow multiple IDs or not |
+| `readonly`    | `boolean`                 | Prevents all modifications if `true` |
 | `remote`      | `object`                  | Remote logic (see below) |
-| `onRequest`   | `function`                | Hook before local sets (`setReady`) |
-| `onResponse`  | `function`                | Hook after remote pushes (`push`) |
-| `emitter`     | `(emit, ctx, ...args) => void` | Hook into all events, override default emitter |
+| `ttl`         | `number`                  | Time-to-live in ms for each value |
+| `onRequest`   | `function` or `string`    | Hook or key for extracting data from remote result |
+| `onResponse`  | `function` or `string`    | Hook or key for extracting data from remote result |
+| `emitter`     | `(emit, ctx, ...args) => void` | Custom event dispatcher |
 
 ---
 
 ## 🔌 Remote Setup
 
-Remote logic is fully optional and modular.
+| Key       | Type                            | Description |
+|-----------|----------------------------------|-------------|
+| `init`    | `(set, forget) => void`          | Passive sync setup |
+| `pull`    | `(id, ...args) => Promise<data>` | Called during `get()` |
+| `push`    | `(data, id, ...args) => Promise<data>` | Called during `set()` |
+| `timeout` | `number`                         | Optional timeout for remote operations (default 5000ms) |
 
-| Key       | Type                        | Arguments                            | Return                     | Description |
-|-----------|-----------------------------|--------------------------------------|----------------------------|-------------|
-| `init`    | `(set:Fn) => void`          | Called once on creation             | `void`                     | Bind incoming remote events |
-| `pull`    | `(id, ...args) => data`     | On `vault.get()`                     | `Promise<data>`            | Fetch remote data |
-| `push`    | `(data, id, ...args) => data` | On `vault.set()`                    | `Promise<data>`            | Push data to remote |
-
-If `remote` is defined and `readonly` isn't set, `vault.set()` will use `push`.  
-If `remote.pull` is defined, missing or stale values will be pulled via `get()`.
+If pull or push fails, all pending related operations fail together.
 
 ---
 
-## 🧠 Hook Functions (options)
+## ⚡ Actions & Reactions
 
-### onRequest(data, id, ...args) → `[data, result]`
+Actions are accessible on the client via:
 
-Invoked before any local write. Can be used to transform or validate data.
+```js
+await vault.do.myAction(params, ...args);
+```
 
-### onResponse(data, id, ...args) → `[data, result]`
+There is **no need to declare them** on the client. On the server, define reactions:
 
-Invoked after `push()`. Can be used to analyze or update data before it reaches the local store.
+```js
+new Vault({
+  reactions: {
+    myAction: async (params, ctx) => ({ value: 42 })
+  },
+  onRequest: "value"
+});
+```
 
-### emitter(emit, ctx, ...args)
+This extracts only the `value` from the response for store but client will still receive whole response
 
-Override the default event system. Only called on status changes.
+---
 
-- `emit`: call to emit an event
-- `ctx`: `{ id, status, to, from }`
-- `...args`: custom args passed into all methods
+## 🎯 Behavior
 
-> Vault uses `emit(ctx, ...args)` unless you override it.
+- `readonly: true` blocks both `.set()` and `.do.*`
+- `null` / `undefined` values **do not remove** records
+- `emitter` lets you **redirect, filter, or rewrite** events
+- TTL is **lazy**: entry expires on access, not in background
+- `withActions` creates a proxy to call any `vault.do.action()` via property access
 
 ---
 
 ## ⚙️ API Reference
 
-All methods accept extra `...args` which propagate to all hooks (`onRequest`, `onResponse`, `remote`, `emitter`).
+Same API for single and multi-record usage:
 
-### Common Methods (Vault, VaultOne, VaultMany)
-
-| Method       | Description |
-|--------------|-------------|
-| `get(id?, ...args)`     | Fetch value. Pulls from remote if missing or stale |
-| `set(data, id?, ...args)` | Write value. Sends to remote if available |
-| `reset(id?)`            | Deletes the entry |
-| `getData(id?)`          | Gets last known value (`undefined` if never set) |
-| `getStatus(id?)`        | Returns current status: `init`, `pull`, `push`, `ready`, `error` |
-| `on(fn)`                | Subscribes to all events. `fn(ctx, ...args)` |
-| `once(fn)`              | Subscribes only once. Same format as `on` |
-
-> `VaultOne` omits the `id` argument internally, i.e. `vault.get(...args)`.
-
-### VaultMany Specific
-
-| Method          | Description |
-|-----------------|-------------|
-| `has(id, ...args)` | Returns `true` if the entry exists (resolved value is not `undefined`) |
-| `forEach(fn)`   | Iterates over all local entries. Supports async `fn(ctx)` |
-| `collect(collector, fn)` | Like `forEach`, but passes collector object for accumulation |
-
----
-
-## 🔄 Status Lifecycle
-
-Each entry goes through statuses:
-
-- `init`: fresh
-- `pull`: being fetched
-- `push`: being saved
-- `ready`: valid
-- `error`: failed
-
-You can listen to status changes via `on()` or `once()`.
+| Method         | Description |
+|----------------|-------------|
+| `get(id?, ...args)`     | Read local or pull from remote |
+| `set(data, id?, ...args)` | Save local and push to remote |
+| `do(action, params, ...args)` | Calls a reaction |
+| `reset(id?, ...args)`   | Clears entry and resets state |
+| `getStatus(id?)`        | Returns current status |
+| `getData(id?)`          | Returns last known value |
+| `has(id, ...args)`      | Checks if entry exists |
+| `on(fn)`                | Subscribe to all updates |
+| `once(fn)`              | Subscribe once to update |
+| `forEach(fn)`           | Iterate entries |
+| `collect(obj, fn)`      | Iterate and collect into object |
 
 ---
 
 ## 🧪 Example
 
 ```js
-import { VaultMany } from "@randajan/vault-kit";
-
-const vault = new VaultMany({
-  remote: {
-    pull: async id => fetchData(id),
-    push: async (data, id) => saveData(id, data),
-    init: set => socket.on("update", ([id, data]) => set(data, id))
+const server = new Vault({
+  reactions: {
+    echo: async ({ text }) => ({ message: text + "!" })
   },
-  onRequest: async (data, id) => [sanitize(data), { ok: true }],
-  onResponse: async (data, id) => [data, { received: true }],
-  emitter: (emit, ctx, ...args) => {
-    if (ctx.status === "ready") emit(ctx, ...args);
-  }
+  onRequest: "message"
 });
 
-await vault.set({ foo: 1 }, "myKey");
-const result = await vault.get("myKey");
+const client = new Vault({
+  ttl:10000,
+  remote: {
+    pull: id => fetch("/data/" + id).then(r => r.json()),
+    push: (data, id) => fetch("/data/" + id, { method: "POST", body: JSON.stringify(data) }),
+    timeout: 3000
+  },
+  onResponse: "message"
+});
+
+await vault.do.echo({ text: "Hello" }); // returns "Hello!"
 ```
 
 ---
 
-## 🙏 Thanks
+## 📄 License
 
-Thanks for using `@randajan/vault-kit`!  
-Good luck, and feel free to send issues, suggestions, or ideas for improvements.  
-We appreciate every kind of feedback ❤️
+MIT © [randajan](https://github.com/randajan)
