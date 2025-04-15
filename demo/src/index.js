@@ -4,27 +4,21 @@ import createVault from "../../dist/esm/index.mjs";
 const sleep = async ms=>new Promise(res=>setTimeout(res, ms));
 
 const remote = window.remote = createVault({
+    ttl:5000,
     hasMany:true,
-    onRequest:(req, id)=>{
-        console.log("REQUEST", {req});
-        const { action, content } = req;
-        const data = action === "write" ? content : action === "rnd" ? Math.random() : null;
-        return [data, {isOk:true, data}]; //this is response
-    },
     emitter:(emit, ctx, ...args)=>{
         console.log("REMOTE", ctx.status, ctx, ...args);
-        if (ctx.status !== "ready") { return; }
+        if (ctx.status !== "ready" && ctx.status !== "expired") { return; }
         emit(ctx, ...args);
     },
     reactions:{
-        rnd:()=>{},
-        write:()=>{}
+        rnd:(exp)=>Math.random()*exp,
+        write:(data)=>data
     },
-    dataPropLocal:"data"
+    onRequest:data=>[data, {data, isOk:true}]
 });
 
 const local = window.local = createVault({
-    readonly:true,
     remote:{
         pull:async _=>{
             console.log("LOCAL-PULL");
@@ -41,19 +35,13 @@ const local = window.local = createVault({
             });
         }
     },
-    onResponse:(res)=>{ //here comes response
-        console.log({res});
-        const { data } = res;
-        return [data, res];
-    },
     emitter:(emit, ctx, ...args)=>{
         console.log("LOCAL", ctx.status, ctx, ...args);
         if (ctx.status !== "ready") { return; }
         const same = ctx.to === ctx.from;
         if (!same) { emit(ctx, ...args); }
     },
-    actions:["rnd", "write"],
-    dataPropRemote:"data"
+    onResponse:"data"
 });
 
 

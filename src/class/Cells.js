@@ -24,6 +24,6 @@ export class Cells extends Map {
     reset(id, ...a) {
         const c = super.get(id);
         super.delete(id);
-        c?.reset(...a);
+        c?.reset(id, ...a);
     }
 }

@@ -2,20 +2,44 @@
 //status
 //init, push, pull, error, ready
 
-import { toBol, toFn, toNum, toObj, toRng, toStr } from "../tools";
+import { toArr, toBol, toFn, toFold, toNum, toObj, toRng, toStr } from "../tools";
 import { Cell } from "./Cell";
 import { Cells } from "./Cells";
 import { Handlers } from "./Handlers";
 
 const formatRemote = (remote)=>{
-    remote = toObj(remote);
+    remote = toObj(remote, "options.remote");
     if (!remote) { return; }
 
-    remote.init = toFn(remote.init);                        //(set)=>{ set(); }
-    remote.push = toFn(remote.push);                        //(data, id)=>data;
-    remote.pull = toFn(remote.pull, "option.remote.pull");  //(id)=>data;
+    remote.init = toFn(remote.init, "options.remote.init");       //(set)=>{ set(); }
+    remote.push = toFn(remote.push, "options.remote.push");       //(data, id)=>data;
+    remote.pull = toFn(remote.pull, "option.remote.pull", true);  //(id)=>data;
 
     return remote;
+}
+
+
+const formatFold = (fold, reactions)=>{
+    fold = toFold(fold, "options.fold", !!reactions);
+
+    if (!reactions) { return fold; }
+
+    return async (req, ...a)=>{
+        const { action, params } = toObj(req, "request", true);
+
+        const react = reactions[action];
+        if (!react) { throw new Error(`Action '${action}' is not defined`); }
+
+        const res = await react(params, ...a);
+        return fold(res, ...a);
+    }
+}
+
+const formatUnfold = (unfold)=>{
+    unfold = toFold(unfold, "options.unfold");
+    if (!unfold) { return; }
+
+    return async (res)=>unfold(res);
 }
 
 
@@ -28,11 +52,14 @@ export class VaultPrivate {
         const hasMany = this.hasMany = toBol(opt.hasMany, "options.hasMany") || false;
         this.readonly = (remote && !remote.push) || toBol(opt.readonly, "options.readonly") || false;
         const ttl = this.ttl = toRng(opt.ttl, 0, 2147483647, "options.ttl");
-    
-        this.onRequest = toFn(opt.onRequest, "options.onRequest");
-        this.onResponse = toFn(opt.onResponse, "options.onResponse");
-        const emitter = this.emitter = toFn(opt.emitter, "options.emitter");
 
+        this.reactions = toObj(opt.reactions, "options.reactions");
+        this.actions = toArr(opt.actions, "options.array");
+    
+        this.onRequest = formatFold(opt.onRequest, this.reactions);
+        this.onResponse = formatUnfold(opt.onResponse);
+
+        const emitter = this.emitter = toFn(opt.emitter, "options.emitter");
         const handlers = this.handlers = new Handlers();
         const onSet = !emitter ? handlers.run : (...a)=>emitter(handlers.run, ...a);
 
@@ -79,8 +106,12 @@ export class VaultPrivate {
 
     async resolve(status, data, ...a) {
         const c = this.store.get(...a);
-        if (!c.status.startsWith("pu")) { return this.resolveIn(status, data, ...a); }
-        return c.data = c.data.finally(_=>this.resolveIn(status, data, ...a));
+        if (!c || !c.status.startsWith("pu")) { return this.resolveIn(status, data, ...a); }
+        // if (status === "pull") { console.log("AAA"); return c.data = c.data.then(_=>{
+        //     console.log("AAAAAA");
+        //     return "AAA";
+        // });}
+        return c.data = c.data.then(_=>this.resolveIn(status, data, ...a));
     }
 
 }

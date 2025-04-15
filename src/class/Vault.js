@@ -9,6 +9,9 @@ export class Vault {
 
         Object.defineProperty(this, "hasMany", {value:_p.hasMany});
 
+        this.do = this.do.bind(this);
+        this.do = this.withActions(this.do);
+
         _privates.set(this, _p);
     }
 
@@ -21,9 +24,7 @@ export class Vault {
     async get(...a) {
         const _p = _privates.get(this);
         const c = _p.store.get(...a);
-        if (c?.status === "ready") {
-            return c.data;
-        }
+        if (c?.status === "ready") { return c.data; }
         if (_p.remote) { return _p.resolve("pull", undefined, ...a); } 
     }
 
@@ -33,6 +34,10 @@ export class Vault {
         if (_p.remote) { return _p.resolve("push", data, ...a); }
         
         return _p.setReady("local", data, ...a);
+    }
+
+    async do(action, params, ...a) {
+        return this.set({action, params}, ...a);
     }
 
     reset(...a) {
@@ -72,5 +77,18 @@ export class Vault {
         const res = this.forEach(ctx=>exe(collector, ctx));
         return res instanceof Promise ? res.then(_=>collector) : collector;
     }
+
+    withActions(target) {
+        const d = this.do;
+
+        return new Proxy(target, {
+            get(t, prop, receiver) {
+                const val = Reflect.get(t, prop, receiver);
+                if (val !== undefined) { return val; }
+                return (params, ...a) =>d(prop, params, ...a);
+            }
+        });
+    }
+
 
 }
