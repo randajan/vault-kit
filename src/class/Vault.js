@@ -3,8 +3,6 @@ import { VaultPrivate } from "./VaultPrivate";
 
 export const _privates = new WeakMap();
 
-const _pending = ["push", "pull"];
-
 export class Vault {
 
     constructor(options={}) {
@@ -14,8 +12,8 @@ export class Vault {
         Object.defineProperty(this, "hasMany", {enumerable, value:_p.hasMany});
         Object.defineProperty(this, "hasRemote", {enumerable, value:!!_p.remote});
 
-        this.do = this.do.bind(this);
-        this.do = this.withActions(this.do);
+        const act = this.act.bind(this);
+        this.act = this.withActions(act, act);
 
         _privates.set(this, _p);
     }
@@ -37,7 +35,7 @@ export class Vault {
         return store.set(data, ...a);
     }
 
-    async do(action, params, ...a) {
+    async act(action, params, ...a) {
         const { readonly, store } = _privates.get(this);
         if (readonly) { throw new Error(`Do is not allowed`); }
         return store.set({action, params}, ...a);
@@ -82,7 +80,7 @@ export class Vault {
     }
 
     withActions(target, execute) {
-        const d = toFn(execute, "second argument") || this.do;
+        const d = toFn(execute, "second argument") || this.act;
 
         return new Proxy(target, {
             get(t, prop, receiver) {

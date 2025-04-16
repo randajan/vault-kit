@@ -11,7 +11,7 @@ const createPort = (vault, redraw, ...a) => {
 
     let reply, fallback;
 
-    const d = async (action, params, ...e)=>reply = await vault.do(action, params, ...a, ...e);
+    const d = async (action, params, ...e)=>reply = await vault.act(action, params, ...a, ...e);
     
     const enumerable = true;
     const port = Object.defineProperties({}, {
@@ -21,7 +21,7 @@ const createPort = (vault, redraw, ...a) => {
         reply: { enumerable, get: () => reply },
         confirm: { value:() => { reply = undefined; redraw(Symbol()); } },
         set:{ value:async (data, ...e) =>reply = await vault.set(data, ...a, ...e)},
-        do:{ value:vault.withActions(d, d) },
+        act:{ value:vault.withActions(d, d) },
         isStatus: { value:(statuses, ...e) =>vault.isStatus(statuses, ...a, ...e) },
     });
 
@@ -53,5 +53,5 @@ export const useVault = (vault, ...a)=>{
 
 
 
-
+Vault.prototype.use = function (...a) { return useVault(this, ...a); }
 

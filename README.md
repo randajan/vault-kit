@@ -78,7 +78,7 @@ If pull or push fails, all pending related operations fail together.
 Actions are accessible on the client via:
 
 ```js
-await vault.do.myAction(params, ...args);
+await vault.act.myAction(params, ...args);
 ```
 
 There is **no need to declare them** on the client. On the server, define reactions:
@@ -98,11 +98,11 @@ This extracts only the `value` from the response for store but client will still
 
 ## 🎯 Behavior
 
-- `readonly: true` blocks both `.set()` and `.do.*`
+- `readonly: true` blocks both `.set()` and `.act.*`
 - `null` / `undefined` values **do not remove** records
 - `emitter` lets you **redirect, filter, or rewrite** events
 - TTL is **lazy**: entry expires on access, not in background
-- `withActions` creates a proxy to call any `vault.do.action()` via property access
+- `withActions` creates a proxy to call any `vault.act.action()` via property access
 
 ---
 
@@ -114,7 +114,7 @@ Same API for single and multi-record usage:
 |----------------|-------------|
 | `get(id?, ...args)`     | Read local or pull from remote |
 | `set(data, id?, ...args)` | Save local and push to remote |
-| `do(action, params, ...args)` | Calls a reaction |
+| `act(action, params, ...args)` | Calls a reaction |
 | `reset(id?, ...args)`   | Clears entry and resets state |
 | `getStatus(id?)`        | Returns current status |
 | `getData(id?)`          | Returns last known value |
@@ -146,7 +146,7 @@ const client = new Vault({
   onResponse: "message"
 });
 
-await vault.do.echo({ text: "Hello" }); // returns "Hello!"
+await vault.act.echo({ text: "Hello" }); // returns "Hello!"
 ```
 
 ---

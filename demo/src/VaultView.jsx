@@ -9,6 +9,8 @@ export const VaultView = props=>{
 
     const port = useVault(local);
 
+    window.port = port;
+
     return (
         <div>{JSON.stringify(port)}</div>
     )

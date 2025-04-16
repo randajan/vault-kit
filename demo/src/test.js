@@ -4,7 +4,6 @@ import createVault from "../../dist/esm/index.mjs";
 const sleep = async ms=>new Promise(res=>setTimeout(res, ms));
 
 export const remote = window.remote = createVault({
-    ttl:10000,
     hasMany:true,
     emitter:(emit, ctx, ...args)=>{
         console.log("REMOTE", ctx.status, ctx, ...args);
@@ -19,9 +18,7 @@ export const remote = window.remote = createVault({
 });
 
 export const local = window.local = createVault({
-    ttl:2000,
     remote:{
-        timeout:2000,
         pull:async _=>{
             console.log("LOCAL-PULL");
             return sleep(1000).then(_=>remote.get("foo"));
