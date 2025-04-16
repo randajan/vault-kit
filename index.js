@@ -6,9 +6,12 @@ slib(isBuild, {
     mode: "web",
     lib:{
         minify:false,
-        entries:["index.js"]
+        entries:["index.js", "react/index.js"]
     },
     demo:{
         external:["chalk"],
+        loader:{
+            ".js":"jsx",
+        }
     },
 })

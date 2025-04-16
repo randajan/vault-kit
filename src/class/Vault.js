@@ -1,13 +1,18 @@
+import { toFn } from "../tools";
 import { VaultPrivate } from "./VaultPrivate";
 
 export const _privates = new WeakMap();
+
+const _pending = ["push", "pull"];
 
 export class Vault {
 
     constructor(options={}) {
         const _p = new VaultPrivate(options);
 
-        Object.defineProperty(this, "hasMany", {value:_p.hasMany});
+        const enumerable = true;
+        Object.defineProperty(this, "hasMany", {enumerable, value:_p.hasMany});
+        Object.defineProperty(this, "hasRemote", {enumerable, value:!!_p.remote});
 
         this.do = this.do.bind(this);
         this.do = this.withActions(this.do);
@@ -17,6 +22,13 @@ export class Vault {
 
     getStatus(...a) { return _privates.get(this).store.pick(...a)?.status || "init"; }
     getData(...a) { return _privates.get(this).store.pick(...a)?.data; }
+    getError(...a) { return _privates.get(this).store.pick(...a)?.error; }
+
+    isStatus(statuses, ...a) {
+        const s = this.getStatus(...a);
+        return Array.isArray(statuses) ? statuses.includes(s) : (s === statuses);
+    }
+
 
     async get(...a) { return _privates.get(this).store.get(...a); }
     async set(data, ...a) {
@@ -26,7 +38,9 @@ export class Vault {
     }
 
     async do(action, params, ...a) {
-        return _privates.get(this).store.set({action, params}, ...a);
+        const { readonly, store } = _privates.get(this);
+        if (readonly) { throw new Error(`Do is not allowed`); }
+        return store.set({action, params}, ...a);
     }
 
     reset(...a) {
@@ -34,8 +48,8 @@ export class Vault {
         return this;
     }
 
-    on(fn) { _privates.get(this).handlers.add(fn); }
-    once(fn) { _privates.get(this).handlers.add(fn, true); }
+    on(fn) { return _privates.get(this).handlers.on(fn); }
+    once(fn) { return _privates.get(this).handlers.once(fn); }
 
     async has(...a) {
         const data = await this.get(...a);
@@ -67,8 +81,8 @@ export class Vault {
         return res instanceof Promise ? res.then(_=>collector) : collector;
     }
 
-    withActions(target) {
-        const d = this.do;
+    withActions(target, execute) {
+        const d = toFn(execute, "second argument") || this.do;
 
         return new Proxy(target, {
             get(t, prop, receiver) {

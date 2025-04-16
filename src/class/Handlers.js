@@ -1,21 +1,30 @@
 import { toFn } from "../tools";
 
 
-export class Handlers extends Set {
-    constructor() {
-        super();
-        this.run = this.run.bind(this);
+export class Handlers {
+    constructor(emitter) {
+        this.list = [];
+
+        const run = (...args)=>{
+            for (const fn of [...this.list]) { fn(...args); }
+        }
+
+        this.run = !emitter ? run : (...a)=>emitter(run, ...a);
     }
 
-    run(...args) {
-        for (const fn of [...this]) { fn(...args); }
-    }
-
-    add(fn, once=false) {
+    on(fn) {
         fn = toFn(fn, "fn argument", true);
-        let rem = () => this.delete(fn);
-        super.add(!once ? fn : (...a)=>{ rem(); return fn(...a); });
-        return rem;
+        const { list } = this;
+        list.push(fn);
+        return () => {
+            const x = list.indexOf(fn);
+            if (x >= 0) { list.splice(x, 1); }
+        }
+    }
+
+    once(fn) {
+        let rem;
+        return rem = this.on((...a)=>{ rem(); return fn(...a); });
     }
 
 }

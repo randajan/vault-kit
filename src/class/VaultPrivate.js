@@ -52,17 +52,14 @@ export class VaultPrivate {
 
         const hasMany = this.hasMany = toBol(opt.hasMany, "options.hasMany") || false;
         this.readonly = (remote && !remote.push) || toBol(opt.readonly, "options.readonly") || false;
-        const ttl = this.ttl = toRng(opt.ttl, 0, 2147483647, "options.ttl") ?? 0;
+        const ttl = this.ttl = toRng(opt.ttl, 0, 2147483647*2, "options.ttl") ?? 0;
 
         this.reactions = toObj(opt.reactions, "options.reactions");
     
         this.onRequest = formatFold(opt.onRequest, this.reactions);
         this.onResponse = formatUnfold(opt.onResponse);
 
-        const emitter = this.emitter = toFn(opt.emitter, "options.emitter");
-        const handlers = this.handlers = new Handlers();
-        this.onSet = !emitter ? handlers.run : (...a)=>emitter(handlers.run, ...a);
-        
+        this.handlers = new Handlers(toFn(opt.emitter, "options.emitter"));
 
         const store = this.store = hasMany ? new Cells(this) : new Cell(this);
 
@@ -71,7 +68,7 @@ export class VaultPrivate {
         if (!ttl) { return; }
 
         const cleanUp = !hasMany ? _=>store.pick() : _=>{ for (const id of store.keys()) { store.pick(id); }}
-        setInterval(cleanUp, ttl); 
+        setInterval(cleanUp, ttl/2); 
         
     }
 

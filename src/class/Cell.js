@@ -12,10 +12,11 @@ export class Cell {
 
     onSet(persistent, before, ...a) {
         const { _vault, status, data, error } = this;
-        const { ttl, onSet } = _vault;
+        const { ttl, handlers } = _vault;
         if (persistent) { delete this.expiresAt; }
         else if (ttl > 0) { this.expiresAt = Date.now() + ttl; }
-        return onSet({status, data, error, before}, ...a);
+
+        return handlers.run({status, data, error, before}, ...a);
     }
 
     async fetchRemote(status, data, ...a) {
@@ -94,7 +95,6 @@ export class Cell {
         this.status = status;
         delete this.data;
         delete this.prom;
-        delete this.queue;
         delete this.error;
         delete this.expiresAt;
 

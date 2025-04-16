@@ -10,12 +10,18 @@
     ".": {
       "import": "./dist/esm/index.mjs",
       "require": "./dist/cjs/index.cjs"
+    },
+    "./react": {
+      "import": "./dist/esm/react/index.mjs",
+      "require": "./dist/cjs/react/index.cjs"
     }
   },
   "license": "MIT",
   "peerDependencies": {},
   "devDependencies": {
-    "@randajan/simple-lib": "^3.0.2"
+    "@randajan/simple-lib": "^3.0.2",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
   },
   "files": [
     "dist",
