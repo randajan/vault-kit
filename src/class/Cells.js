@@ -24,11 +24,18 @@ export class Cells extends Map {
         return c.get(id, ...a);
     }
 
-    async set(data, id, ...a) {
-        const { _vault } = this;
+    ensure(id) {
         let c = super.get(id);
-        if (!c) { super.set(id, c = new Cell(_vault)); }
-        return c.set(data, id, ...a);
+        if (!c) { super.set(id, c = new Cell(this._vault)); }
+        return c;
+    }
+
+    async setReady(mode, data, id, ...a) {
+        return this.ensure(id).setReady(mode, data, id, ...a);
+    }
+
+    async set(data, id, ...a) {
+        return this.ensure(id).set(data, id, ...a);
     }
 
     reset(status, id, ...a) {
