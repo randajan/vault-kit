@@ -51,7 +51,3 @@ export const useVault = (vault, ...a)=>{
     return port;
 }
 
-
-
-Vault.prototype.use = function (...a) { return useVault(this, ...a); }
-

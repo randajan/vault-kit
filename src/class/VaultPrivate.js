@@ -22,12 +22,14 @@ const formatRemote = (remote)=>{
 
 
 const formatFold = (fold, reactions)=>{
-    fold = toFold(fold, "options.fold", !!reactions);
+    fold = toFold(fold, "options.onRequest", !!reactions);
 
     if (!reactions) { return fold; }
 
     return async (req, ...a)=>{
         const { action, params } = toObj(req, "request", true);
+
+        if (!action) { throw new Error(`Action is required`); }
 
         const react = reactions[action];
         if (!react) { throw new Error(`Action '${action}' is not defined`); }
@@ -38,7 +40,7 @@ const formatFold = (fold, reactions)=>{
 }
 
 const formatUnfold = (unfold)=>{
-    unfold = toFold(unfold, "options.unfold");
+    unfold = toFold(unfold, "options.onResponse");
     if (!unfold) { return; }
 
     return async (res)=>unfold(res);

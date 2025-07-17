@@ -75,7 +75,7 @@ export class Vault {
     }
 
     collect(collector, exe) {
-        const res = this.forEach(ctx=>exe(collector, ctx));
+        const res = this.forEach((ctx, id)=>exe(collector, ctx, id));
         return res instanceof Promise ? res.then(_=>collector) : collector;
     }
 
