@@ -46,6 +46,11 @@ export class Vault {
         return this;
     }
 
+    resetAll(...a) {
+        if (!this.hasMany) { return this.reset(...a); }
+        return this.forEach((ctx, id)=>this.reset(id, ...a));
+    }
+
     on(fn) { return _privates.get(this).handlers.on(fn); }
     once(fn) { return _privates.get(this).handlers.once(fn); }
 
@@ -64,7 +69,7 @@ export class Vault {
 
         let proms;
 
-        for (const id of store.keys()) {
+        for (const id of [...store.keys()]) {
             const { status, data } = store.pick(id);
             if (status === "init") { continue; }
             const res = exe({status, data}, id);
