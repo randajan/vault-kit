@@ -10,15 +10,16 @@ export const remote = window.remote = createVault({
         if (ctx.status !== "ready" && ctx.status !== "expired") { return; }
         emit(ctx, ...args);
     },
-    reactions:{
+    actions:{
         rnd:(exp)=>Math.random()*exp,
         write:(data)=>data
     },
-    onRequest:data=>[data, {data, isOk:true}]
+    unfold:data=>[data, {data, isOk:true}]
 });
 
 export const local = window.local = createVault({
     remote:{
+        preserveAction:false,
         pull:async _=>{
             console.log("LOCAL-PULL");
             return sleep(1000).then(_=>remote.get("foo"));
@@ -34,9 +35,13 @@ export const local = window.local = createVault({
             });
         }
     },
+    actions:{
+        rnd2:_=>({action:"rnd", params:2}),
+        rnd10:_=>({action:"rnd", params:10})
+    },
     emitter:(emit, ctx, ...args)=>{
         console.log("LOCAL", ctx.status, ctx, ...args);
         emit(ctx, ...args);
     },
-    onResponse:"data"
+    unfold:"data"
 });

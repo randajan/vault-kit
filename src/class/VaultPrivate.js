@@ -2,76 +2,75 @@
 //status
 //init, push, pull, error, ready, expired
 
-import { toArr, toBol, toFn, toFold, toObj, toRng, withTimeout } from "../tools";
+import { toBol, toFn, toObj, toRng, toStr, withTimeout } from "../tools";
 import { Cell } from "./Cell";
 import { Cells } from "./Cells";
 import { Handlers } from "./Handlers";
 
-const formatRemote = (remote)=>{
+const formatRemote = (remote, reqPreserveActions=false) => {
     const m = "options.remote";
     remote = toObj(remote, m);
     if (!remote) { return; }
 
-    const timeout = remote.timeout = toRng(remote.timeout, 0, 2147483647, m+".timeout") ?? 5000;
-    remote.init = toFn(remote.init, m+".init");
-    remote.push = withTimeout(toFn(remote.push, m+".push"), timeout);
-    remote.pull = withTimeout(toFn(remote.pull, m+".pull", true), timeout);
-    
+    const timeout = remote.timeout = toRng(remote.timeout, 0, 2147483647, m + ".timeout") ?? 5000;
+    remote.init = toFn(remote.init, m + ".init");
+    remote.push = withTimeout(toFn(remote.push, m + ".push"), timeout);
+    remote.pull = withTimeout(toFn(remote.pull, m + ".pull", true), timeout);
+    remote.preserveAction = toBol(remote.preserveAction, m + ".preserveAction", reqPreserveActions);
+
     return remote;
 }
 
+export const formatUnfold = (fold, errorName, req=false)=>{
+    const f = toFn(fold);
+    if (f) { return f; }
+    let prop = toStr(fold, errorName);
+    if (prop) { return (r=>[r[prop], r]); }
+    if (req) { return (r=>[r, r]); }
+}
 
-const formatFold = (fold, reactions)=>{
-    fold = toFold(fold, "options.onRequest", !!reactions);
 
-    if (!reactions) { return fold; }
+const formatActions = (actions, preserveAction) => {
+    if (!actions) { return req=>req; }
 
-    return async (req, ...a)=>{
+    return async (req, ...a) => {
         const { action, params } = toObj(req, "request", true);
 
         if (!action) { throw new Error(`Action is required`); }
 
-        const react = reactions[action];
-        if (!react) { throw new Error(`Action '${action}' is not defined`); }
+        const act = actions[action];
+        if (!act) { throw new Error(`Action '${action}' is not defined`); }
 
-        const res = await react(params, ...a);
-        return fold(res, ...a);
+        const data = await act(params, ...a);
+        return preserveAction ? { action, params:data } : data;
     }
 }
-
-const formatUnfold = (unfold)=>{
-    unfold = toFold(unfold, "options.onResponse");
-    if (!unfold) { return; }
-
-    return async (res)=>unfold(res);
-}
-
 
 export class VaultPrivate {
     constructor(opt) {
         opt = toObj(opt, "options") || {};
-        const remote = this.remote = formatRemote(opt.remote);
+
+        const actions = toObj(opt.actions, "options.actions");
+        const remote = this.remote = formatRemote(opt.remote, actions);
 
         const hasMany = this.hasMany = toBol(opt.hasMany, "options.hasMany") || false;
         this.readonly = (remote && !remote.push) || toBol(opt.readonly, "options.readonly") || false;
-        const ttl = this.ttl = toRng(opt.ttl, 0, 2147483647*2, "options.ttl") ?? 0;
+        const ttl = this.ttl = toRng(opt.ttl, 0, 2147483647 * 2, "options.ttl") ?? 0;
 
-        this.reactions = toObj(opt.reactions, "options.reactions");
-    
-        this.onRequest = formatFold(opt.onRequest, this.reactions);
-        this.onResponse = formatUnfold(opt.onResponse);
+        this.act = formatActions(actions, remote?.preserveAction);
+        this.unfold = formatUnfold(opt.unfold, "options.unfold");
 
         this.handlers = new Handlers(toFn(opt.emitter, "options.emitter"));
 
         const store = this.store = hasMany ? new Cells(this) : new Cell(this);
 
-        if (remote?.init) { remote.init((...a)=>store.setReady("remote", ...a)); }
+        if (remote?.init) { remote.init((...a) => store.setReady("remote", ...a)); }
 
         if (!ttl) { return; }
 
-        const cleanUp = !hasMany ? _=>store.pick() : _=>{ for (const id of store.keys()) { store.pick(id); }}
-        setInterval(cleanUp, ttl/2); 
-        
+        const cleanUp = !hasMany ? _ => store.pick() : _ => { for (const id of store.keys()) { store.pick(id); } }
+        setInterval(cleanUp, ttl / 2);
+
     }
 
 

@@ -53,12 +53,11 @@ export class Cell {
 
     async setReady(mode, data, ...a) { //mode = push|pull|remote|local
         const { _vault, data:d, status:s } = this;
-        const { onResponse, onRequest } = _vault;
+        const { unfold } = _vault;
 
         let res = data;
         
-        if (onRequest && mode === "local") { [data, res] = await onRequest(data, ...a); }
-        if (onResponse && mode === "push") { [data, res] = await onResponse(data, ...a); }
+        if (unfold && (mode === "local" || mode === "push")) { [data, res] = await unfold(data); }
 
         this.status = "ready";
         this.data = data;
@@ -82,11 +81,12 @@ export class Cell {
 
     async set(data, ...a) {
         const { _vault, prom } = this;
-        const { remote } = _vault;
-        if (!remote) { return this.setReady("local", data, ...a); }
-        if (!prom) { return this.setProm("push", data, ...a); }
+        const { remote, act } = _vault;
 
-        return this.prom = this.prom.then(_=>this.setProm("push", data, ...a));
+        if (!remote) { return this.setReady("local", await act(data, ...a), ...a); }
+
+        const push = async _=>this.setProm("push", await act(data, ...a), ...a);
+        return !prom ? push() : (this.prom = this.prom.then(push));
     }
 
     reset(status, ...a) {

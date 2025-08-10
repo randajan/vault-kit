@@ -54,8 +54,7 @@ const vault = new Vault({ /* options */ }) || createVault({ /* options */ });
 | `readonly`    | `boolean`                 | Prevents all modifications if `true` |
 | `remote`      | `object`                  | Remote logic (see below) |
 | `ttl`         | `number`                  | Time-to-live in ms for each value |
-| `onRequest`   | `function` or `string`    | Hook or key for extracting data from remote result |
-| `onResponse`  | `function` or `string`    | Hook or key for extracting data from remote result |
+| `unfold`   | `function` or `string`    | Hook or key for extracting data from the set() result |
 | `emitter`     | `(emit, ctx, ...args) => void` | Custom event dispatcher |
 
 ---
@@ -68,27 +67,28 @@ const vault = new Vault({ /* options */ }) || createVault({ /* options */ });
 | `pull`    | `(id, ...args) => Promise<data>` | Called during `get()` |
 | `push`    | `(data, id, ...args) => Promise<data>` | Called during `set()` |
 | `timeout` | `number`                         | Optional timeout for remote operations (default 5000ms) |
+| `preserveAction` | `boolean`                         | If true then the local actions results will be passed as params to the remote. Otherwise you need to specify at local actions result an remote action for example "{ action:"update", params:data }". If actions and remote are defined this will be required. |
 
 If pull or push fails, all pending related operations fail together.
 
 ---
 
-## ⚡ Actions & Reactions
+## ⚡ Actions
 
-Actions are accessible on the client via:
+Actions are traits that can help a lot with organize your pushes. At default they are accessible on the local via:
 
 ```js
 await vault.act.myAction(params, ...args);
 ```
 
-There is **no need to declare them** on the client. On the server, define reactions:
+There is **no need to declare them** on the local. On the remote, define actions:
 
 ```js
 new Vault({
-  reactions: {
+  actions: {
     myAction: async (params, ctx) => ({ value: 42 })
   },
-  onRequest: "value"
+  unfold: "value"
 });
 ```
 
@@ -114,7 +114,7 @@ Same API for single and multi-record usage:
 |----------------|-------------|
 | `get(id?, ...args)`     | Read local or pull from remote |
 | `set(data, id?, ...args)` | Save local and push to remote |
-| `act(action, params, ...args)` | Calls a reaction |
+| `act(action, params, ...args)` | Calls an action |
 | `reset(id?, ...args)`   | Clears entry and resets state |
 | `getStatus(id?)`        | Returns current status |
 | `getData(id?)`          | Returns last known value |
@@ -130,10 +130,10 @@ Same API for single and multi-record usage:
 
 ```js
 const server = new Vault({
-  reactions: {
+  actions: {
     echo: async ({ text }) => ({ message: text + "!" })
   },
-  onRequest: "message"
+  unfold: "message"
 });
 
 const client = new Vault({
@@ -143,7 +143,7 @@ const client = new Vault({
     push: (data, id) => fetch("/data/" + id, { method: "POST", body: JSON.stringify(data) }),
     timeout: 3000
   },
-  onResponse: "message"
+  unfold: "message"
 });
 
 await vault.act.echo({ text: "Hello" }); // returns "Hello!"

@@ -25,16 +25,6 @@ export const toRng = (any, min, max, errorName, req=false)=>{
 }
 
 
-export const toFold = (fold, errorName, req=false)=>{
-    const f = toFn(fold);
-    if (f) { return f; }
-    let prop = toStr(fold, errorName);
-    if (prop) { return (r=>[r[prop], r]); }
-    if (req) { return (r=>[r, r]); }
-}
-
-
-
 export const timeout = (ms, msg="Timeout")=>new Promise((_, rej)=>setTimeout(_=>rej(new Error(msg)), ms));
 
 export const withTimeout = (fn, ms, msg="Timeout")=>{
