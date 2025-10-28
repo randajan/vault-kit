@@ -59,6 +59,7 @@ export class VaultPrivate {
 
         this.act = formatActions(actions, remote?.preserveAction);
         this.unfold = formatUnfold(opt.unfold, "options.unfold");
+        this.trait = toFn(opt.trait, "options.trait") || (data=>data);
 
         this.handlers = new Handlers(toFn(opt.emitter, "options.emitter"));
 

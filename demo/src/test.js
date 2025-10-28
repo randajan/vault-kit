@@ -43,5 +43,6 @@ export const local = window.local = createVault({
         console.log("LOCAL", ctx.status, ctx, ...args);
         emit(ctx, ...args);
     },
+    getter:v=>Number(v).toFixed(2),
     unfold:"data"
 });

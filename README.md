@@ -55,6 +55,7 @@ const vault = new Vault({ /* options */ }) || createVault({ /* options */ });
 | `remote`      | `object`                  | Remote logic (see below) |
 | `ttl`         | `number`                  | Time-to-live in ms for each value |
 | `unfold`   | `function` or `string`    | Hook or key for extracting data from the set() result |
+| `trait`   | `function`    | Hook for manipulating data before it's stored to vault (set) |
 | `emitter`     | `(emit, ctx, ...args) => void` | Custom event dispatcher |
 
 ---
