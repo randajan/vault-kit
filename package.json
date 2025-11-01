@@ -1,6 +1,6 @@
 {
   "name": "@randajan/vault-kit",
-  "version": "3.1.0",
+  "version": "3.2.0",
   "description": "A tiny and universal data vault that behaves like a writable file system. Store, sync, forget. Works on client and server.",
   "repository": "randajan/vault-kit",
   "type": "module",
