@@ -6,9 +6,12 @@ export class Cell {
         this._vault = _vault;
     }
 
-    isExpired() { return this.expiresAt && (this.expiresAt < Date.now()); }
+    notDestroyed() {
+        if (this.status !== "destroyed") { return true; }
+        throw new Error("Was destroyed before");
+    }
 
-    pick() { return this.isExpired() ? this.reset("expired") : this; }
+    isExpired() { return this.expiresAt && (this.expiresAt < Date.now()); }
 
     onSet(persistent, before, ...a) {
         const { _vault, status, data, error } = this;
@@ -70,7 +73,11 @@ export class Cell {
         return res;
     }
 
+    pick() { return this.isExpired() ? this.reset("expired") : this; }
+
     async get(...a) {
+        this.notDestroyed();
+        
         const { _vault, status, data, prom } = this.pick();
         const { remote } = _vault;
         if (status === "ready") { return data; }
@@ -82,6 +89,8 @@ export class Cell {
     }
 
     async set(data, ...a) {
+        this.notDestroyed();
+
         const { _vault, prom } = this;
         const { remote, act } = _vault;
 
@@ -92,6 +101,8 @@ export class Cell {
     }
 
     reset(status, ...a) {
+        this.notDestroyed();
+
         const { _vault, data:d, status:s } = this;
         const { purge } = _vault;
 

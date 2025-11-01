@@ -42,13 +42,18 @@ export class Vault {
     }
 
     reset(...a) {
-        _privates.get(this).store.reset("init", ...a);
+        _privates.get(this).reset("init", ...a);
         return this;
     }
 
     resetAll(...a) {
-        if (!this.hasMany) { return this.reset(...a); }
-        return this.forEach((ctx, id)=>this.reset(id, ...a));
+        _privates.get(this).resetAll("init", ...a);
+        return this;
+    }
+
+    destroy(...a) {
+        _privates.get(this).resetAll("destroyed", ...a);
+        return this;
     }
 
     on(fn) { return _privates.get(this).handlers.on(fn); }
@@ -95,6 +100,5 @@ export class Vault {
             }
         });
     }
-
 
 }

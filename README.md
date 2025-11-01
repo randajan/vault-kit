@@ -117,14 +117,16 @@ Same API for single and multi-record usage:
 | `get(id?, ...args)`     | Read local or pull from remote |
 | `set(data, id?, ...args)` | Save local and push to remote |
 | `act(action, params, ...args)` | Calls an action |
-| `reset(id?, ...args)`   | Clears entry and resets state |
-| `getStatus(id?)`        | Returns current status |
+| `getStatus(id?)`        | Returns current status (one of: init, push, pull, error, ready, expired, destroyed) |
 | `getData(id?)`          | Returns last known value |
 | `has(id, ...args)`      | Checks if entry exists |
 | `on(fn)`                | Subscribe to all updates |
 | `once(fn)`              | Subscribe once to update |
 | `forEach(fn)`           | Iterate entries |
 | `collect(obj, fn)`      | Iterate and collect into object |
+| `reset(id?, ...args)`   | Clears entry and sets status to "init" |
+| `resetAll(...args)`   | Clears all entries and sets status to "init" |
+| `destroy(...args)`   | Clears all entries and sets status to "destroyed" (point of no return) |
 
 ---
 

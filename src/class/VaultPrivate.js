@@ -1,6 +1,6 @@
 
 //status
-//init, push, pull, error, ready, expired
+//init, push, pull, error, ready, expired, destroyed
 
 import { toBol, toFn, toObj, toRng, toStr, withTimeout } from "../tools";
 import { Cell } from "./Cell";
@@ -75,5 +75,14 @@ export class VaultPrivate {
 
     }
 
+    reset(status, ...a) {
+        const { store } = this;
+        store.reset(status, ...a);
+    }
+
+    resetAll(status, ...a) {
+        if (!this.hasMany) { this.reset(status, ...a); }
+        else { this.forEach((ctx, id)=>this.reset(status, id, ...a)); }
+    }
 
 }
