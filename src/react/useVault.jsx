@@ -30,7 +30,7 @@ const createPort = (vault, redraw, ...a) => {
         const { status, before } = ctx;
         if (vault.hasRemote) {
             if (status === "init" || status === "expired") { fallback = before.data; vault.get(...a); }
-            else if (status === "ready" || status === "error") { fallback = undefined; }
+            else if (status === "ready" || status === "error" || status === "destroyed") { fallback = undefined; }
         }
         redraw(Symbol());
     });
