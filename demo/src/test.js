@@ -36,7 +36,10 @@ export const local = window.local = createVault({
                 console.log("LOCAL DBG=", id, data);
                 if (id === "foo") { set(data); }
             });
-            return _=>{ console.log("init cleanUp after detroy") };
+            return "init cleanUp after detroy";
+        },
+        destroy:msg=>{
+            console.log(msg);
         }
     },
     actions:{

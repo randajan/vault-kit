@@ -67,9 +67,10 @@ export class VaultPrivate {
 
         const store = this.store = hasMany ? new Cells(this) : new Cell(this);
 
-        if (remote?.init) { this.destroy = remote.init((...a) => store.setReady("remote", ...a)); }
+        if (remote?.init) { this.initDestroy = remote.init((...a) => store.setReady("remote", ...a)); }
 
-        this.destroy = remote?.destroy || toFn(this.destroy, "remote.init return value") || (()=>{});
+        if (remote?.destroy) { this.destroy = _=>remote.destroy(this.initDestroy); }
+        else { this.destroy = toFn(this.initDestroy, "remote.init return value") || (()=>{}); }
 
         if (!ttl) { return; }
 
