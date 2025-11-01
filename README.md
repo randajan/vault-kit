@@ -56,6 +56,7 @@ const vault = new Vault({ /* options */ }) || createVault({ /* options */ });
 | `ttl`         | `number`                  | Time-to-live in ms for each value |
 | `unfold`   | `function` or `string`    | Hook or key for extracting data from the set() result |
 | `trait`   | `function`    | Hook for manipulating data before it's stored to vault (set) |
+| `purge`   | `function`    | Hook for purge old data before reset or set new data  |
 | `emitter`     | `(emit, ctx, ...args) => void` | Custom event dispatcher |
 
 ---

@@ -53,14 +53,16 @@ export class Cell {
 
     async setReady(mode, data, ...a) { //mode = push|pull|remote|local
         const { _vault, data:d, status:s } = this;
-        const { unfold, trait } = _vault;
+        const { unfold, trait, purge } = _vault;
 
         let res = data;
         
         if (unfold && (mode === "local" || mode === "push")) { [data, res] = await unfold(data); }
 
-        this.status = "ready";
+        if (this.data != null) { purge(this.data); }
         this.data = await trait(data, res);
+
+        this.status = "ready";
         delete this.error;
         delete this.prom;
 
@@ -90,7 +92,14 @@ export class Cell {
     }
 
     reset(status, ...a) {
-        const { data:d, status:s } = this;
+        const { _vault, data:d, status:s } = this;
+        const { purge } = _vault;
+
+        try {
+            if (this.data != null) { purge(this.data); }
+        } catch(err) {
+            throw this.setError(err);
+        }
 
         this.status = status;
         delete this.data;

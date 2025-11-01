@@ -14,7 +14,10 @@ export const remote = window.remote = createVault({
         rnd:(exp)=>Math.random()*exp,
         write:(data)=>data
     },
-    unfold:data=>[data, {data, isOk:true}]
+    unfold:data=>[data, {data, isOk:true}],
+    purge:data=>{
+        console.log("Will be purged:", data)
+    }
 });
 
 export const local = window.local = createVault({
