@@ -17,6 +17,7 @@ const formatRemote = (remote, reqPreserveActions=false) => {
     remote.push = withTimeout(toFn(remote.push, m + ".push"), timeout);
     remote.pull = withTimeout(toFn(remote.pull, m + ".pull", true), timeout);
     remote.preserveAction = toBol(remote.preserveAction, m + ".preserveAction", reqPreserveActions);
+    remote.destroy = toFn(remote.destroy, m + ".destroy");
 
     return remote;
 }
@@ -66,7 +67,9 @@ export class VaultPrivate {
 
         const store = this.store = hasMany ? new Cells(this) : new Cell(this);
 
-        if (remote?.init) { remote.init((...a) => store.setReady("remote", ...a)); }
+        if (remote?.init) { this.destroy = remote.init((...a) => store.setReady("remote", ...a)); }
+
+        this.destroy = remote?.destroy || toFn(this.destroy, "remote.init return value") || (()=>{});
 
         if (!ttl) { return; }
 

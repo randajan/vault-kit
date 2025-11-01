@@ -65,9 +65,10 @@ const vault = new Vault({ /* options */ }) || createVault({ /* options */ });
 
 | Key       | Type                            | Description |
 |-----------|----------------------------------|-------------|
-| `init`    | `(set, forget) => void`          | Passive sync setup |
+| `init`    | `(set, forget) => void`          | Passive sync setup, return value can be cleanUp function that will be called after `destroy()` |
 | `pull`    | `(id, ...args) => Promise<data>` | Called during `get()` |
 | `push`    | `(data, id, ...args) => Promise<data>` | Called during `set()` |
+| `destroy`    | `() => {}` | CleanUp function called after `destroy()` (if it's not provided it expect that it will be returned from `init()` function) |
 | `timeout` | `number`                         | Optional timeout for remote operations (default 5000ms) |
 | `preserveAction` | `boolean`                         | If true then the local actions results will be passed as params to the remote. Otherwise you need to specify at local actions result an remote action for example "{ action:"update", params:data }". If actions and remote are defined this will be required. |
 

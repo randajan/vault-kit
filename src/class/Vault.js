@@ -52,7 +52,9 @@ export class Vault {
     }
 
     destroy(...a) {
-        _privates.get(this).resetAll("destroyed", ...a);
+        const _vault = _privates.get(this);
+        _vault.resetAll("destroyed", ...a);
+        _vault.destroy();
         return this;
     }
 
