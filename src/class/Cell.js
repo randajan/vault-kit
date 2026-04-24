@@ -122,4 +122,8 @@ export class Cell {
 
         return this;
     }
+
+    resetAll(status, ...a) {
+        return this.reset(status, ...a);
+    }
 }

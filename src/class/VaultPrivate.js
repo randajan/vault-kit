@@ -85,8 +85,8 @@ export class VaultPrivate {
     }
 
     resetAll(status, ...a) {
-        if (!this.hasMany) { this.reset(status, ...a); }
-        else { this.forEach((ctx, id)=>this.reset(status, id, ...a)); }
+        const { store } = this;
+        store.resetAll(status, ...a);
     }
 
 }
