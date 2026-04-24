@@ -45,7 +45,7 @@ export class Cells extends Map {
     }
 
     resetAll(status, ...a) {
-        const ids = this.keys();
+        const ids = [...this.keys()];
         for (const id of ids) { this.reset(status, id, ...a); }
     }
 }
