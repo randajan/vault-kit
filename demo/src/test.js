@@ -12,7 +12,8 @@ export const remote = window.remote = createVault({
     },
     actions:{
         rnd:(exp)=>Math.random()*exp,
-        write:(data)=>data
+        write:(data)=>data,
+        error:_=>{throw Error()}
     },
     unfold:data=>[data, {data, isOk:true}],
     purge:data=>{
@@ -44,7 +45,11 @@ export const local = window.local = createVault({
     },
     actions:{
         rnd2:_=>({action:"rnd", params:2}),
-        rnd10:_=>({action:"rnd", params:10})
+        rnd10:_=>({action:"rnd", params:10}),
+        error:_=>{throw Error("WTF")}
+    },
+    actionsCatch:_=>{
+        console.log("ERROR catched");
     },
     emitter:(emit, ctx, ...args)=>{
         console.log("LOCAL", ctx.status, ctx, ...args);

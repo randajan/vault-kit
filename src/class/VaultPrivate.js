@@ -31,8 +31,10 @@ export const formatUnfold = (fold, errorName, req=false)=>{
 }
 
 
-const formatActions = (actions, preserveAction) => {
+const formatActions = (actions, preserveAction, actionsCatch) => {
     if (!actions) { return req=>req; }
+
+    const ac = toFn(actionsCatch, "options.actionsCatch");
 
     return async (req, ...a) => {
         const { action, params } = toObj(req, "request", true);
@@ -42,7 +44,13 @@ const formatActions = (actions, preserveAction) => {
         const act = actions[action];
         if (!act) { throw new Error(`Action '${action}' is not defined`); }
 
-        const data = await act(params, ...a);
+        let data;
+        try { data = await act(params, ...a); }
+        catch(err) {
+            if (!ac) { throw err; }
+            data = await ac(err);
+        }
+
         return preserveAction ? { action, params:data } : data;
     }
 }
@@ -58,7 +66,7 @@ export class VaultPrivate {
         this.readonly = (remote && !remote.push) || toBol(opt.readonly, "options.readonly") || false;
         const ttl = this.ttl = toRng(opt.ttl, 0, 2147483647 * 2, "options.ttl") ?? 0;
 
-        this.act = formatActions(actions, remote?.preserveAction);
+        this.act = formatActions(actions, remote?.preserveAction, opt.actionsCatch);
         this.unfold = formatUnfold(opt.unfold, "options.unfold");
         this.trait = toFn(opt.trait, "options.trait") || (data=>data);
         this.purge = toFn(opt.purge, "options.purge") || (data=>data);

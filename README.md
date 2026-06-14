@@ -57,6 +57,7 @@ const vault = new Vault({ /* options */ }) || createVault({ /* options */ });
 | `unfold`   | `function` or `string`    | Hook or key for extracting data from the set() result |
 | `trait`   | `function`    | Hook for manipulating data before it's stored to vault (set) |
 | `purge`   | `function`    | Hook for purge old data before reset or set new data  |
+| `actionsCatch` | `(error) => data`    | Handles errors thrown by defined actions and returns fallback action data |
 | `emitter`     | `(emit, ctx, ...args) => void` | Custom event dispatcher |
 
 ---
@@ -96,6 +97,19 @@ new Vault({
 ```
 
 This extracts only the `value` from the response for store but client will still receive whole response
+
+Use `actionsCatch` to handle errors thrown while running a defined action. If it is not provided, the original error is re-thrown. The returned value is used as the action result:
+
+```js
+new Vault({
+  actions: {
+    save: async data => {
+      throw new Error("Invalid payload");
+    }
+  },
+  actionsCatch: err => ({ error: true, message: err.message })
+});
+```
 
 ---
 
