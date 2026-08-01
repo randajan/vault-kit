@@ -1,175 +1,293 @@
 # @randajan/vault-kit
 
-[![NPM](https://img.shields.io/npm/v/@randajan/vault-kit.svg)](https://www.npmjs.com/package/@randajan/vault-kit) [![JavaScript Style Guide](https://img.shields.io/badge/code_style-standard-brightgreen.svg)](https://standardjs.com)
+[![NPM](https://img.shields.io/npm/v/@randajan/vault-kit.svg)](https://www.npmjs.com/package/@randajan/vault-kit)
+[![JavaScript Style Guide](https://img.shields.io/badge/code_style-standard-brightgreen.svg)](https://standardjs.com)
 
+A tiny event-driven data vault for local cache, remote sync, actions, and passive updates.
 
-## 🧬 Universal Glue for your Data Flow
-vault-kit is an ultra-lightweight, event-driven sync layer between any data producer and data consumer.
-Think of it as programmable glue — seamless, flexible, and fast.
+`vault-kit` gives you one small primitive that can behave like a single cached value or a multi-record store. You provide the transport: REST, WebSocket, localStorage, IndexedDB, memory, GraphQL, custom APIs, anything that returns data.
 
-- 🧠 System-agnostic – Works in Node.js, browsers, or anywhere JavaScript runs.
-- 📦 Dual-format ready – Distributed as both CommonJS (CJS) and ECMAScript Modules (ESM).
-- 🔌 Backend-agnostic – Easily plugs into REST, WebSocket, GraphQL, localStorage, memory, custom APIs, and more.
-- 🛠️ Fully modular – Bring your own transport logic. Don't like assumptions? Perfect.
-- 🔁 3-way sync – From local to remote, remote to local, and passive remote-driven updates.
-- 🧩 Composable – Chainable, embeddable, stackable. Use one or many.
-- 🌀 Cache + Sync – Transparent in-memory caching with lazy fetch and optimistic write.
-- 💡 Minimal, but mighty – No dependencies. Pure logic. Easy to read. Easy to extend.
-- 🚀 Perfect for real-time apps – Ideal with socket.io, signals, or any reactive system.
+## Features
 
-Use it to orchestrate state, power form sync, or bridge the gap between local UI and remote data.
-Vault is your contractless API. A wire that listens. A sync pulse.
+- Single-value or multi-record mode with the same API.
+- Local cache with status tracking.
+- Lazy remote `pull()` on first read or after reset/expiry.
+- Remote `push()` on local writes.
+- Passive remote-to-local sync through `remote.init()`.
+- Action proxy via `vault.act.someAction(params)`.
+- `ttl` support with cleanup that does not keep Node.js alive.
+- Remote operation timeouts powered by `@randajan/sleep`.
+- React hook export at `@randajan/vault-kit/react`.
 
----
+## Install
 
-## ✨ Purpose
+```bash
+npm install @randajan/vault-kit
+```
 
-It acts like a **virtual file system** where each file is identified by an `id`. It supports:
+## Quick Start
 
-- **Local to Remote** updates (`vault.set → remote.push`)
-- **Remote to Local** updates (`remote.pull → vault.get`)
-- **Passive Sync** (via `remote.init`)
-- **Events** triggered on any change
-- **Automatic Caching** of the last known state
+```js
+import createVault from "@randajan/vault-kit";
 
-The `id` is passed as the second argument and is optional if `hasMany` is not used.
+const notes = createVault({
+    hasMany:true,
+    ttl:10000,
+    remote:{
+        timeout:3000,
+        pull:id=>fetch(`/api/notes/${id}`).then(res=>res.json()),
+        push:(data, id)=>fetch(`/api/notes/${id}`, {
+            method:"PUT",
+            headers:{ "content-type":"application/json" },
+            body:JSON.stringify(data)
+        }).then(res=>res.json())
+    }
+});
 
----
+notes.on((ctx, id)=>{
+    console.log(ctx.status, id, ctx.data);
+});
 
-## 🧩 Options
+const note = await notes.get("welcome");
+await notes.set({ ...note, title:"Hello" }, "welcome");
+```
 
-All options are passed into the vault constructor:
+## Core Model
+
+A vault stores cells. In the default mode there is one cell:
+
+```js
+const user = createVault();
+
+await user.set({ name:"Ada" });
+console.log(await user.get());
+```
+
+With `hasMany:true`, each cell is addressed by the first non-data argument:
+
+```js
+const users = createVault({ hasMany:true });
+
+await users.set({ name:"Ada" }, "ada");
+await users.set({ name:"Grace" }, "grace");
+
+console.log(await users.get("ada"));
+```
+
+Each cell has one of these statuses:
+
+| Status | Meaning |
+|--------|---------|
+| `init` | Empty or reset. |
+| `pull` | Waiting for `remote.pull()`. |
+| `push` | Waiting for `remote.push()`. |
+| `ready` | Data is available. |
+| `error` | Last pull, push, action, trait, or purge failed. |
+| `expired` | TTL expired and the cell was reset. |
+| `destroyed` | Vault was destroyed and cannot be used again. |
+
+## Options
 
 ```js
 import createVault, { Vault } from "@randajan/vault-kit";
 
-const vault = new Vault({ /* options */ }) || createVault({ /* options */ });
+const vault = createVault(options);
+const same = new Vault(options);
 ```
 
-### General Options
+| Option | Type | Description |
+|--------|------|-------------|
+| `hasMany` | `boolean` | Enables multiple IDs. Defaults to `false`. |
+| `readonly` | `boolean` | Blocks `set()` and `act.*()`. |
+| `remote` | `object` | Remote pull/push/init/destroy behavior. |
+| `ttl` | `number` | Time-to-live in ms. `0` disables expiry. |
+| `actions` | `object` | Local action handlers used by `act()`. |
+| `actionsCatch` | `(error) => data` | Converts action errors into fallback data. |
+| `unfold` | `function` or `string` | Extracts stored data from a result. |
+| `trait` | `(data, result) => data` | Transforms data before it is stored. |
+| `purge` | `(oldData) => void` | Runs before old data is discarded. |
+| `emitter` | `(emit, ctx, ...args) => void` | Filters, delays, rewrites, or forwards events. |
 
-| Option        | Type                      | Description |
-|---------------|---------------------------|-------------|
-| `hasMany`     | `boolean`                 | Allow multiple IDs or not |
-| `readonly`    | `boolean`                 | Prevents all modifications if `true` |
-| `remote`      | `object`                  | Remote logic (see below) |
-| `ttl`         | `number`                  | Time-to-live in ms for each value |
-| `unfold`   | `function` or `string`    | Hook or key for extracting data from the set() result |
-| `trait`   | `function`    | Hook for manipulating data before it's stored to vault (set) |
-| `purge`   | `function`    | Hook for purge old data before reset or set new data  |
-| `actionsCatch` | `(error) => data`    | Handles errors thrown by defined actions and returns fallback action data |
-| `emitter`     | `(emit, ctx, ...args) => void` | Custom event dispatcher |
+### Remote
 
----
+| Remote option | Type | Description |
+|---------------|------|-------------|
+| `pull` | `(...args) => data \| Promise<data>` | Required when `remote` is used. Called by `get()`. |
+| `push` | `(data, ...args) => data \| Promise<data>` | Called by `set()` and `act.*()`. If missing, the vault is readonly. |
+| `init` | `(set) => cleanup` | Optional passive-sync setup. Call `set(data, ...args)` to inject remote updates. |
+| `destroy` | `(initReturn) => void` | Optional cleanup. Receives the return value from `init()`. |
+| `timeout` | `number` | Remote timeout in ms. Defaults to `5000`; `0` disables timeout wrapping. |
+| `preserveAction` | `boolean` | Required when local `actions` and `remote` are both provided. Controls whether local action output is wrapped back into `{ action, params }`. |
 
-## 🔌 Remote Setup
+Remote timeouts use `@randajan/sleep.withTimeout()`. Its internal timer is cleaned up when the remote promise settles and uses unref behavior in Node.js, so a pending timeout timer does not keep a process alive by itself.
 
-| Key       | Type                            | Description |
-|-----------|----------------------------------|-------------|
-| `init`    | `(set, forget) => void`          | Passive sync setup. Return value can be cleanUp function that will be called after `vault.destroy()` |
-| `pull`    | `(id, ...args) => Promise<data>` | Called during `get()` |
-| `push`    | `(data, id, ...args) => Promise<data>` | Called during `set()` |
-| `destroy`    | `(init()) => {}` | CleanUp function called after `destroy()`. If it's provided then it receives as firt argument return value from `init()` |
-| `timeout` | `number`                         | Optional timeout for remote operations (default 5000ms) |
-| `preserveAction` | `boolean`                         | If true then the local actions results will be passed as params to the remote. Otherwise you need to specify at local actions result an remote action for example "{ action:"update", params:data }". If actions and remote are defined this will be required. |
+## Actions
 
-If pull or push fails, all pending related operations fail together.
-
----
-
-## ⚡ Actions
-
-Actions are traits that can help a lot with organize your pushes. At default they are accessible on the local via:
+`act()` sends an `{ action, params }` request through the same write pipeline as `set()`.
 
 ```js
-await vault.act.myAction(params, ...args);
+await vault.act("increment", { by:1 });
+await vault.act.increment({ by:1 });
 ```
 
-There is **no need to declare them** on the local. On the remote, define actions:
+You can let the remote side interpret the action request:
 
 ```js
-new Vault({
-  actions: {
-    myAction: async (params, ctx) => ({ value: 42 })
-  },
-  unfold: "value"
-});
-```
-
-This extracts only the `value` from the response for store but client will still receive whole response
-
-Use `actionsCatch` to handle errors thrown while running a defined action. If it is not provided, the original error is re-thrown. The returned value is used as the action result:
-
-```js
-new Vault({
-  actions: {
-    save: async data => {
-      throw new Error("Invalid payload");
+const client = createVault({
+    remote:{
+        pull:id=>api.get(id),
+        push:(request, id)=>api.action(id, request.action, request.params)
     }
-  },
-  actionsCatch: err => ({ error: true, message: err.message })
 });
+
+await client.act.rename({ title:"New title" }, "note-1");
 ```
 
----
-
-## 🎯 Behavior
-
-- `readonly: true` blocks both `.set()` and `.act.*`
-- `null` / `undefined` values **do not remove** records
-- `emitter` lets you **redirect, filter, or rewrite** events
-- TTL is **lazy**: entry expires on access, not in background
-- `withActions` creates a proxy to call any `vault.act.action()` via property access
-
----
-
-## ⚙️ API Reference
-
-Same API for single and multi-record usage:
-
-| Method         | Description |
-|----------------|-------------|
-| `get(id?, ...args)`     | Read local or pull from remote |
-| `set(data, id?, ...args)` | Save local and push to remote |
-| `act(action, params, ...args)` | Calls an action |
-| `getStatus(id?)`        | Returns current status (one of: init, push, pull, error, ready, expired, destroyed) |
-| `getData(id?)`          | Returns last known value |
-| `has(id, ...args)`      | Checks if entry exists |
-| `on(fn)`                | Subscribe to all updates |
-| `once(fn)`              | Subscribe once to update |
-| `forEach(fn)`           | Iterate entries |
-| `collect(obj, fn)`      | Iterate and collect into object |
-| `reset(id?, ...args)`   | Clears entry and sets status to "init" |
-| `resetAll(...args)`   | Clears all entries and sets status to "init" |
-| `destroy(...args)`   | Clears all entries and sets status to "destroyed" (point of no return) |
-
----
-
-## 🧪 Example
+Or define local actions that convert user intent into data before push:
 
 ```js
-const server = new Vault({
-  actions: {
-    echo: async ({ text }) => ({ message: text + "!" })
-  },
-  unfold: "message"
+const vault = createVault({
+    actions:{
+        rename:({ title })=>({ title })
+    },
+    remote:{
+        preserveAction:false,
+        pull:id=>api.get(id),
+        push:(data, id)=>api.save(id, data)
+    }
 });
 
-const client = new Vault({
-  ttl:10000,
-  remote: {
-    pull: id => fetch("/data/" + id).then(r => r.json()),
-    push: (data, id) => fetch("/data/" + id, { method: "POST", body: JSON.stringify(data) }),
-    timeout: 3000
-  },
-  unfold: "message"
-});
-
-await vault.act.echo({ text: "Hello" }); // returns "Hello!"
+await vault.act.rename({ title:"New title" }, "note-1");
 ```
 
----
+Use `actionsCatch` when action errors should become data instead of thrown errors:
 
-## 📄 License
+```js
+const vault = createVault({
+    actions:{
+        save:data=>{
+            if (!data.title) { throw new Error("Missing title"); }
+            return data;
+        }
+    },
+    actionsCatch:error=>({ error:true, message:error.message })
+});
+```
 
-MIT © [randajan](https://github.com/randajan)
+## Transforming Results
+
+`unfold` extracts the value stored in the vault from a larger result. The original result is still returned to the caller.
+
+```js
+const vault = createVault({
+    unfold:"record"
+});
+
+const reply = await vault.set({ record:{ title:"Saved" }, meta:{ ok:true } });
+
+console.log(vault.getData()); // { title:"Saved" }
+console.log(reply);           // { record:{...}, meta:{ ok:true } }
+```
+
+`trait` runs after `unfold` and before the value is stored:
+
+```js
+const vault = createVault({
+    trait:data=>({ ...data, cachedAt:Date.now() })
+});
+```
+
+`purge` runs before old data is discarded by `set()`, `reset()`, expiry, or `destroy()`.
+
+## Events
+
+Subscribe with `on()` or `once()`:
+
+```js
+const off = vault.on((ctx, id)=>{
+    console.log(ctx.status, id, ctx.data, ctx.error);
+});
+
+off();
+```
+
+The event context has:
+
+| Field | Description |
+|-------|-------------|
+| `status` | New status. |
+| `data` | Current data, when available. |
+| `error` | Current error, when available. |
+| `before` | Previous `{ status, data }` snapshot. |
+
+`emitter` wraps event dispatch:
+
+```js
+const vault = createVault({
+    emitter:(emit, ctx, ...args)=>{
+        if (ctx.status === "ready") { emit(ctx, ...args); }
+    }
+});
+```
+
+## TTL And Destroy
+
+`ttl` marks non-persistent values for expiry. Expired cells reset to `expired` when they are accessed. When `ttl` is enabled, vault-kit also creates a cleanup interval at `ttl / 2`; in Node.js this interval is `unref()`'d and it is always cleared by `destroy()`.
+
+```js
+const vault = createVault({ ttl:5000 });
+
+await vault.set({ value:1 });
+
+setTimeout(()=>console.log(vault.getStatus()), 6000); // expired
+```
+
+`destroy()` resets all cells to `destroyed`, clears internal cleanup, calls remote cleanup, and makes future access invalid.
+
+## API
+
+| Method | Description |
+|--------|-------------|
+| `get(...args)` | Returns cached data or starts `remote.pull()`. |
+| `set(data, ...args)` | Stores local data or pushes to remote. |
+| `act(action, params, ...args)` | Runs an action through the write pipeline. |
+| `act.name(params, ...args)` | Proxy shorthand for `act("name", params, ...args)`. |
+| `getStatus(...args)` | Returns the current status. |
+| `getData(...args)` | Returns cached data without pulling. |
+| `getError(...args)` | Returns the current error. |
+| `isStatus(statusOrList, ...args)` | Checks the current status. |
+| `has(...args)` | Resolves to `true` when `get()` returns a non-`undefined` value. |
+| `reset(...args)` | Resets one cell to `init`. |
+| `resetAll(...args)` | Resets every cell to `init`. |
+| `destroy(...args)` | Resets every cell to `destroyed` and runs cleanup. |
+| `on(fn)` | Subscribes to events. Returns an unsubscribe function. |
+| `once(fn)` | Subscribes to the next event only. |
+| `forEach(fn)` | Iterates cached cells. |
+| `collect(object, fn)` | Iterates cached cells and returns the collector. |
+| `withActions(target, execute)` | Adds action proxy behavior to a function/object. |
+
+## React
+
+```js
+import useVault from "@randajan/vault-kit/react";
+
+function NoteView({ vault, id }) {
+    const note = useVault(vault, id);
+
+    return (
+        <button disabled={note.isStatus(["pull", "push"])} onClick={()=>note.act.increment()}>
+            {note.data?.title || note.status}
+        </button>
+    );
+}
+```
+
+The hook returns a port with `status`, `data`, `error`, `reply`, `set()`, `act.*()`, `isStatus()`, and `confirm()`. For remote vaults, it keeps the previous data as a fallback while a reset or expiry triggers a fresh pull.
+
+## Demo
+
+The `/demo` folder contains an interactive workbench for the core behaviors: multi-record cache, remote pull/push, passive sync, action proxy, TTL, timeout, reset, errors, and event logging.
+
+## License
+
+MIT (c) [randajan](https://github.com/randajan)

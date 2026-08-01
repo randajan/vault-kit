@@ -23,11 +23,3 @@ export const toRng = (any, min, max, errorName, req=false)=>{
     if (num > max) { throw new Error(`Expected ${errorName} to be lesser than '${max}' got '${num}'`); }
     return num;
 }
-
-
-export const timeout = (ms, msg="Timeout")=>new Promise((_, rej)=>setTimeout(_=>rej(new Error(msg)), ms));
-
-export const withTimeout = (fn, ms, msg="Timeout")=>{
-    if (!fn || !ms) { return fn; }
-    return (...args)=>Promise.race([ fn(...args), timeout(ms, msg) ]);
-}
