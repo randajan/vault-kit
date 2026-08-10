@@ -5,7 +5,7 @@ import { VaultPrivate } from "./VaultPrivate";
 /**
  * @preserve
  *
- * @typedef {"init"|"push"|"pull"|"error"|"ready"|"expired"|"destroyed"} VaultStatus
+ * @typedef {"init"|"push"|"pull"|"error"|"ready"|"expired"} VaultStatus
  */
 
 /**
@@ -13,11 +13,14 @@ import { VaultPrivate } from "./VaultPrivate";
  *
  * Event context passed to vault listeners.
  *
+ * Operation extra fields are copied directly onto the context.
+ *
  * @typedef {Object} VaultContext
  * @property {VaultStatus} status Current cell status.
  * @property {*} [data] Current cached data.
  * @property {Error} [error] Current error.
  * @property {{ status?:VaultStatus, data?:* }} [before] Previous cell snapshot.
+ * @property {Array} path Cell path.
  */
 
 /**
@@ -25,7 +28,6 @@ import { VaultPrivate } from "./VaultPrivate";
  *
  * @callback VaultListener
  * @param {VaultContext} ctx
- * @param {...*} args Cell id and extra arguments passed through the operation.
  */
 
 /**
@@ -33,8 +35,22 @@ import { VaultPrivate } from "./VaultPrivate";
  *
  * @callback RemoteSetter
  * @param {*} data Data received from a passive remote update.
- * @param {...*} args Cell id and extra arguments.
+ * @param {Array} [path=[]] Target cell path. Required for addressed vaults.
+ * @param {Object} [extra={}] Custom fields added to the emitted context.
  * @returns {Promise<*>}
+ */
+
+/**
+ * @preserve
+ *
+ * Packet passed to remote pull and push handlers.
+ *
+ * Operation extra fields are copied directly onto the packet.
+ *
+ * @typedef {Object} VaultRemotePacket
+ * @property {Array} path Cell path.
+ * @property {*} [data] Data being pushed.
+ * @property {()=>*|Promise<*>} [pull] Helper available during push to read remote data for the same path.
  */
 
 /**
@@ -44,11 +60,9 @@ import { VaultPrivate } from "./VaultPrivate";
  *
  * @typedef {Object} VaultRemoteOptions
  * @property {number} [timeout=5000] Timeout for pull and push in milliseconds. Use 0 to disable wrapping.
- * @property {Function} [init] Passive-sync setup. Receives a RemoteSetter; its return value is passed to destroy.
- * @property {Function} pull Reads from the remote source.
- * @property {Function} [push] Writes to the remote source. Missing push makes the vault readonly.
- * @property {Function} [destroy] Cleans up resources.
- * @property {boolean} [preserveAction] Keeps the action envelope after local actions run.
+ * @property {(packet:VaultRemotePacket)=>*|Promise<*>} pull Reads from the remote source.
+ * @property {(packet:VaultRemotePacket)=>*|Promise<*>} [push] Writes to the remote source. Missing push makes the vault readonly.
+ * @property {boolean} [preserveAction] Keeps the action envelope after local actions run. Required when remote and actions are used together.
  */
 
 /**
@@ -57,16 +71,18 @@ import { VaultPrivate } from "./VaultPrivate";
  * Main vault configuration.
  *
  * @typedef {Object} VaultOptions
- * @property {boolean} [depth=0] Enables multiple addressed cells.
+ * @property {boolean} [hasMany=false] Enables one path segment.
+ * @property {number} [depth=0] Number of required path segments. Overrides hasMany when greater than 0.
  * @property {boolean} [readonly=false] Blocks set and act calls.
- * @property {VaultRemoteOptions} [remote] Remote pull/push/init adapter.
+ * @property {VaultRemoteOptions} [remote] Remote pull/push adapter.
+ * @property {(set:RemoteSetter)=>void} [init] Passive-sync setup.
  * @property {number} [ttl=0] Time-to-live in milliseconds. Use 0 to disable expiry.
  * @property {Object.<string, Function>} [actions] Local action handlers.
  * @property {(error:Error)=>*} [actionsCatch] Converts local action errors into data.
  * @property {Function|string} [unfold] Extracts cached data from set/push results.
  * @property {(data:*, result:*)=>*} [trait] Transforms data before it is stored.
  * @property {(oldData:*)=>void} [purge] Runs before old cached data is discarded.
- * @property {(emit:VaultListener, ctx:VaultContext, ...args:*)=>void} [emitter] Custom event dispatcher.
+ * @property {(emit:VaultListener, ctx:VaultContext)=>void} [emitter] Custom event dispatcher.
  */
 
 export const _privates = new WeakMap();
@@ -77,7 +93,7 @@ export const _privates = new WeakMap();
  * Public vault facade.
  *
  * A vault owns cached cells, optional remote synchronization, action dispatch,
- * event subscriptions, and lifecycle cleanup.
+ * event subscriptions, and cache expiry.
  */
 export class Vault extends VaultPort {
 
@@ -89,11 +105,6 @@ export class Vault extends VaultPort {
     constructor(options={}) {
         const _vault = new VaultPrivate(options);
         super(_vault);
-    }
-
-    at(...path) {
-        const _vault = _privates.get(this);
-        return new VaultPort(_vault, path);
     }
 
 }

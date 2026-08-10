@@ -127,7 +127,7 @@ const applyRemoteInput = async (input, id)=>{
 const syncServerUpdates = set=>{
     const stop = server.on(ctx=>{
         if (ctx.status !== "ready" || ctx.origin === "client-push") { return; }
-        set(copy(ctx.data), ...ctx.path);
+        set(copy(ctx.data), ctx.path, { origin:"server-event" });
     });
     return stop;
 };

@@ -1,14 +1,12 @@
+import { ice } from "../tools";
+
+
 export class Cell {
 
     constructor(_vault, unmount=()=>{}) {
         this.status = "init";
         this._vault = _vault;
         this.unmountSelf = unmount;
-    }
-
-    notDestroyed() {
-        if (this.status !== "destroyed") { return true; }
-        throw new Error("Was destroyed before");
     }
 
     isExpired() { return this.expiresAt && (this.expiresAt < Date.now()); }
@@ -25,12 +23,12 @@ export class Cell {
             tid.unref?.();
         }
         
-        return handlers.run(Object.freeze({
+        return handlers.run(ice({
             ...extra,
             status,
             data,
             error,
-            before:Object.freeze(before),
+            before:ice(before),
             path,
         }));
     }
@@ -38,9 +36,13 @@ export class Cell {
     async fetchRemote(status, data, path=[], extra={}) {
         try {
             const { push, pull } = this._vault.remote;
-            const packet = Object.freeze({...extra, data, path});
-            const prom = status === "push" ? push(packet) : pull(packet);
-            return this.setReady(status, await prom, path, extra);
+            const isPush = status === "push";
+
+            const prom = isPush
+                ? push(ice({...extra, path, data, pull:_=>pull(ice({...extra, path}))}))
+                : pull(ice({...extra, path}));
+
+            return this.setReady(isPush, await prom, path, extra);
         } catch(err) {
             throw this.setError(err, path, extra);
         }
@@ -68,13 +70,14 @@ export class Cell {
         return err;
     }
 
-    async setReady(mode, data, path=[], extra={}) { //mode = push|pull|remote|local
+    //(mode === "local" || mode === "push") = isResponse
+    async setReady(isResponse, data, path=[], extra={}) { //mode = push|pull|remote|local
         const { _vault, data:d, status:s } = this;
         const { unfold, trait, purge } = _vault;
 
         let res = data;
         
-        if (unfold && (mode === "local" || mode === "push")) { [data, res] = await unfold(data); }
+        if (unfold && isResponse) { [data, res] = await unfold(data); }
 
         if (this.data != null) { purge(this.data); }
         this.data = await trait(data, res);
@@ -94,10 +97,9 @@ export class Cell {
     }
 
     async get(path=[], extra={}) {
-        this.notDestroyed();
-        
         const { _vault, status, data, prom } = this.pick(path);
         const { remote } = _vault;
+        
         if (status === "ready") { return data; }
         if (!remote) { return; }
         if (status === "pull") { return prom; } //same same
@@ -107,20 +109,16 @@ export class Cell {
     }
 
     async set(data, path=[], extra={}) {
-        this.notDestroyed();
-
         const { _vault, prom } = this;
         const { remote, act } = _vault;
 
-        if (!remote) { return this.setReady("local", await act(data, path, extra), path, extra); }
+        if (!remote) { return this.setReady(true, await act(data, path, extra), path, extra); }
 
         const push = async _=>this.setProm("push", await act(data, path, extra), path, extra);
         return !prom ? push() : (this.prom = this.prom.then(push));
     }
 
     reset(status, path=[], extra={}) {
-        this.notDestroyed();
-
         const { _vault, data:d, status:s } = this;
         const { purge } = _vault;
 
@@ -136,17 +134,15 @@ export class Cell {
         delete this.error;
         delete this.expiresAt;
 
-        if (status !== "destroyed") { this.unmountSelf(path); }
+        this.unmountSelf(path);
         this.onSet(true, { status:s, data:d }, path, extra);
 
         return 1;
     }
 
-    forEach(exe, path=[], extra={}) {
-        this.notDestroyed();
-        
+    forEach(exe, path=[], extra={}) {      
         const { status, data, error } = this.pick(path);
-        exe(Object.freeze({ ...extra, status, data, error, path }));
+        exe(ice({ ...extra, status, data, error, path }));
     }
 
 }

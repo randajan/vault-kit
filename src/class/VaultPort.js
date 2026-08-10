@@ -1,4 +1,5 @@
-import { toArr, toFn, toObj } from "../tools";
+import { formatPath } from "../formats";
+import { ice, toExtra, toFn, toObj } from "../tools";
 import { _privates } from "./Vault";
 
 const notHasMany = (vint, methodName) => {
@@ -6,24 +7,21 @@ const notHasMany = (vint, methodName) => {
     throw new Error(`Method '${methodName}' is not available for interface that hasMany=true`);
 }
 
-const mustHasMany = (vint, methodName) => {
+const reqHasMany = (vint, methodName) => {
     if (vint.hasMany) { return; }
     throw new Error(`Method '${methodName}' is not available for interface that hasMany=false`);
 }
 
-const toExtra = (extra)=>toObj(extra, "extra", true);
+
 
 export class VaultPort {
 
-    constructor(_vault, path = []) {
+    constructor(_vault, path = [], baseLevel=0) {
 
-        path = Object.freeze(toArr(path, "path", true));
+        path = formatPath(path, _vault.depth, false, baseLevel);
         const level = path.length;
         const depth = _vault.depth - level;
 
-        if (depth < 0) {
-            throw new Error(`Expected 'path' to be an array of length less then '${_vault.depth}'`);
-        }
 
         const enumerable = true;
         Object.defineProperty(this, "path", { enumerable, value: path });
@@ -36,6 +34,19 @@ export class VaultPort {
         this.act = this.withActions(act, act);
 
         _privates.set(this, _vault);
+    }
+
+    /**
+     * @preserve
+     *
+     * Returns a port bound to a deeper path.
+     *
+     * @param {...*} path Path segments to append.
+     * @returns {VaultPort}
+     */
+    at(...path) {
+        const _vault = _privates.get(this);
+        return new VaultPort(_vault, [...this.path, ...path], this.level);
     }
 
     /**
@@ -80,7 +91,6 @@ export class VaultPort {
      * Checks the current cell status.
      *
      * @param {VaultStatus|VaultStatus[]} statuses Expected status or statuses.
-     * @param {...*} a Cell id and extra arguments.
      * @returns {boolean}
      */
     isStatus(statuses) {
@@ -93,6 +103,7 @@ export class VaultPort {
      *
      * Returns cached data or starts a remote pull when needed.
      *
+     * @param {Object} [extra={}] Custom fields added to the emitted context and remote packet.
      * @returns {Promise<*>}
      */
     async get(extra={}) {
@@ -105,6 +116,7 @@ export class VaultPort {
      *
      * Resolves whether get() returns a non-undefined value.
      *
+     * @param {Object} [extra={}] Custom fields added to the emitted context and remote packet.
      * @returns {Promise<boolean>}
      */
     async has(extra={}) {
@@ -118,6 +130,7 @@ export class VaultPort {
      * Stores data locally or pushes it through the configured remote.
      *
      * @param {*} data Data to store or push.
+     * @param {Object} [extra={}] Custom fields added to the emitted context and remote packet.
      * @returns {Promise<*>}
      */
     async set(data, extra={}) {
@@ -134,13 +147,14 @@ export class VaultPort {
      *
      * @param {string} action Action name.
      * @param {*} data Action parameters.
+     * @param {Object} [extra={}] Custom fields added to the emitted context and remote packet.
      * @returns {Promise<*>}
      */
     async act(action, data, extra={}) {
         notHasMany(this, "act");
         const { readonly, store } = _privates.get(this);
         if (readonly) { throw new Error(`Actions are not allowed`); }
-        return store.set(Object.freeze({ action, data }), this.path, toExtra(extra));
+        return store.set(ice({ action, data }), this.path, toExtra(extra));
     }
 
     /**
@@ -148,7 +162,8 @@ export class VaultPort {
      *
      * Resets one cell to init.
      *
-     * @returns {Vault}
+     * @param {Object} [extra={}] Custom fields added to the emitted context.
+     * @returns {this}
      */
     reset(extra={}) {
         _privates.get(this).store.reset("init", this.path, toExtra(extra));
@@ -158,27 +173,14 @@ export class VaultPort {
     /**
      * @preserve
      *
-     * Destroys the vault and runs remote/TTL cleanup.
-     *
-     * Destroy is intentionally terminal: future access to destroyed cells throws.
-     *
-     * @returns {Vault}
-     */
-    destroy(extra={}) {
-        _privates.get(this).destroy(this.path, toExtra(extra));
-        return this;
-    }
-
-    /**
-     * @preserve
-     *
      * Iterates cached cells. In hasMany mode, untouched init cells are skipped.
      *
      * @param {(ctx:{ status:VaultStatus, data:*, error:*, path:Array })=>*} exe Iterator.
-     * @returns {Promise<*>|undefined}
+     * @param {Object} [extra={}] Custom fields added to each iterator context.
+     * @returns {void}
      */
     forEach(exe, extra={}) {
-        mustHasMany(this, "forEach");
+        reqHasMany(this, "forEach");
         const { store } = _privates.get(this);
         return store.forEach(exe, this.path, toExtra(extra));
     }
@@ -214,8 +216,8 @@ export class VaultPort {
      *
      * Adds property-based action calls to a function or object.
      *
-     * Missing properties become calls to execute(prop, data, ...args), which
-     * powers vault.act.someAction(data, ...args).
+     * Missing properties become calls to execute(prop, data, extra), which
+     * powers vault.act.someAction(data, extra).
      *
      * @param {Function|Object} target Target to proxy.
      * @param {Function} [execute=this.act] Action executor.

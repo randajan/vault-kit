@@ -11,7 +11,5 @@ const root = document.getElementById("root");
 createRoot(root).render(<VaultView/>);
 
 window.vaulter = new Vault({
-    depth:1,
-    ttl:5000,
-    
+    depth:3,
 });

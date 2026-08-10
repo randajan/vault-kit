@@ -1,4 +1,6 @@
 
+export const ice = Object.freeze;
+
 export const is = (type, any)=>typeof type === "string" ? (typeof any === type) : (any instanceof type);
 export const to = (type, any, errorName, req=false)=>{
     if (is(type, any)) { return any; }
@@ -23,3 +25,6 @@ export const toRng = (any, min, max, errorName, req=false)=>{
     if (num > max) { throw new Error(`Expected ${errorName} to be lesser than '${max}' got '${num}'`); }
     return num;
 }
+
+
+export const toExtra = (extra)=>toObj(extra, "extra", true);

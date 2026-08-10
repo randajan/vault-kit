@@ -9,13 +9,13 @@ A tiny event-driven data vault for local cache, remote sync, actions, and passiv
 
 ## Features
 
-- Single-value or multi-record mode with the same API.
+- Single-value or multi-record mode with the same port API.
 - Local cache with status tracking.
 - Lazy remote `pull()` on first read or after reset/expiry.
 - Remote `push()` on local writes.
-- Passive remote-to-local sync through `remote.init()`.
-- Action proxy via `vault.act.someAction(params)`.
-- `ttl` support with cleanup that does not keep Node.js alive.
+- Passive remote-to-local sync through top-level `init`.
+- Action proxy via `vault.act.someAction(data)`.
+- `ttl` support with timers that do not keep Node.js alive.
 - Remote operation timeouts powered by `@randajan/sleep`.
 - React hook export at `@randajan/vault-kit/react`.
 
@@ -35,8 +35,8 @@ const notes = createVault({
     ttl:10000,
     remote:{
         timeout:3000,
-        pull:id=>fetch(`/api/notes/${id}`).then(res=>res.json()),
-        push:(data, id)=>fetch(`/api/notes/${id}`, {
+        pull:({ path })=>fetch(`/api/notes/${path[0]}`).then(res=>res.json()),
+        push:({ data, path })=>fetch(`/api/notes/${path[0]}`, {
             method:"PUT",
             headers:{ "content-type":"application/json" },
             body:JSON.stringify(data)
@@ -44,12 +44,13 @@ const notes = createVault({
     }
 });
 
-notes.on((ctx, id)=>{
-    console.log(ctx.status, id, ctx.data);
+notes.on(ctx=>{
+    console.log(ctx.status, ctx.path[0], ctx.data);
 });
 
-const note = await notes.get("welcome");
-await notes.set({ ...note, title:"Hello" }, "welcome");
+const notePort = notes.at("welcome");
+const note = await notePort.get();
+await notePort.set({ ...note, title:"Hello" });
 ```
 
 ## Core Model
@@ -63,15 +64,23 @@ await user.set({ name:"Ada" });
 console.log(await user.get());
 ```
 
-With `hasMany:true`, each cell is addressed by the first non-data argument:
+With `hasMany:true`, bind a port to a cell before reading or writing:
 
 ```js
 const users = createVault({ hasMany:true });
 
-await users.set({ name:"Ada" }, "ada");
-await users.set({ name:"Grace" }, "grace");
+await users.at("ada").set({ name:"Ada" });
+await users.at("grace").set({ name:"Grace" });
 
-console.log(await users.get("ada"));
+console.log(await users.at("ada").get());
+```
+
+For deeper stores, use `depth` or chain ports:
+
+```js
+const files = createVault({ depth:2 });
+
+await files.at("docs").at("readme").set({ title:"Readme" });
 ```
 
 Each cell has one of these statuses:
@@ -84,7 +93,6 @@ Each cell has one of these statuses:
 | `ready` | Data is available. |
 | `error` | Last pull, push, action, trait, or purge failed. |
 | `expired` | TTL expired and the cell was reset. |
-| `destroyed` | Vault was destroyed and cannot be used again. |
 
 ## Options
 
@@ -97,33 +105,43 @@ const same = new Vault(options);
 
 | Option | Type | Description |
 |--------|------|-------------|
-| `hasMany` | `boolean` | Enables multiple IDs. Defaults to `false`. |
+| `hasMany` | `boolean` | Enables one path segment. Defaults to `false`. |
+| `depth` | `number` | Number of required path segments. Overrides `hasMany` when greater than `0`. |
 | `readonly` | `boolean` | Blocks `set()` and `act.*()`. |
-| `remote` | `object` | Remote pull/push/init/destroy behavior. |
+| `remote` | `object` | Remote pull/push behavior. |
+| `init` | `(set) => void` | Passive-sync setup. |
 | `ttl` | `number` | Time-to-live in ms. `0` disables expiry. |
 | `actions` | `object` | Local action handlers used by `act()`. |
 | `actionsCatch` | `(error) => data` | Converts action errors into fallback data. |
 | `unfold` | `function` or `string` | Extracts stored data from a result. |
 | `trait` | `(data, result) => data` | Transforms data before it is stored. |
 | `purge` | `(oldData) => void` | Runs before old data is discarded. |
-| `emitter` | `(emit, ctx, ...args) => void` | Filters, delays, rewrites, or forwards events. |
+| `emitter` | `(emit, ctx) => void` | Filters, delays, rewrites, or forwards events. |
 
 ### Remote
 
+`pull()` and `push()` receive a frozen packet. Operation extra fields are copied directly onto that packet.
+
 | Remote option | Type | Description |
 |---------------|------|-------------|
-| `pull` | `(...args) => data \| Promise<data>` | Required when `remote` is used. Called by `get()`. |
-| `push` | `(data, ...args) => data \| Promise<data>` | Called by `set()` and `act.*()`. If missing, the vault is readonly. |
-| `init` | `(set) => cleanup` | Optional passive-sync setup. Call `set(data, ...args)` to inject remote updates. |
-| `destroy` | `(initReturn) => void` | Optional cleanup. Receives the return value from `init()`. |
+| `pull` | `(packet) => data \| Promise<data>` | Required when `remote` is used. Called by `get()`. |
+| `push` | `(packet) => data \| Promise<data>` | Called by `set()` and `act.*()`. If missing, the vault is readonly. |
 | `timeout` | `number` | Remote timeout in ms. Defaults to `5000`; `0` disables timeout wrapping. |
-| `preserveAction` | `boolean` | Required when local `actions` and `remote` are both provided. Controls whether local action output is wrapped back into `{ action, params }`. |
+| `preserveAction` | `boolean` | Required when local `actions` and `remote` are both provided. Keeps `{ action, data }` after a local action runs. |
+
+Packet fields:
+
+| Field | Description |
+|-------|-------------|
+| `path` | Cell path array. |
+| `data` | Data being pushed. Only present for `push()`. |
+| `pull` | Helper available during `push()` to read remote data for the same path. |
 
 Remote timeouts use `@randajan/sleep.withTimeout()`. Its internal timer is cleaned up when the remote promise settles and uses unref behavior in Node.js, so a pending timeout timer does not keep a process alive by itself.
 
 ## Actions
 
-`act()` sends an `{ action, params }` request through the same write pipeline as `set()`.
+`act()` sends an `{ action, data }` request through the same write pipeline as `set()`.
 
 ```js
 await vault.act("increment", { by:1 });
@@ -134,30 +152,32 @@ You can let the remote side interpret the action request:
 
 ```js
 const client = createVault({
+    hasMany:true,
     remote:{
-        pull:id=>api.get(id),
-        push:(request, id)=>api.action(id, request.action, request.params)
+        pull:({ path })=>api.get(path[0]),
+        push:({ data:request, path })=>api.action(path[0], request.action, request.data)
     }
 });
 
-await client.act.rename({ title:"New title" }, "note-1");
+await client.at("note-1").act.rename({ title:"New title" });
 ```
 
 Or define local actions that convert user intent into data before push:
 
 ```js
 const vault = createVault({
+    hasMany:true,
     actions:{
-        rename:({ title })=>({ title })
+        rename:({ data })=>({ title:data.title })
     },
     remote:{
         preserveAction:false,
-        pull:id=>api.get(id),
-        push:(data, id)=>api.save(id, data)
+        pull:({ path })=>api.get(path[0]),
+        push:({ data, path })=>api.save(path[0], data)
     }
 });
 
-await vault.act.rename({ title:"New title" }, "note-1");
+await vault.at("note-1").act.rename({ title:"New title" });
 ```
 
 Use `actionsCatch` when action errors should become data instead of thrown errors:
@@ -165,7 +185,7 @@ Use `actionsCatch` when action errors should become data instead of thrown error
 ```js
 const vault = createVault({
     actions:{
-        save:data=>{
+        save:({ data })=>{
             if (!data.title) { throw new Error("Missing title"); }
             return data;
         }
@@ -197,15 +217,15 @@ const vault = createVault({
 });
 ```
 
-`purge` runs before old data is discarded by `set()`, `reset()`, expiry, or `destroy()`.
+`purge` runs before old data is discarded by `set()`, `reset()`, or expiry.
 
 ## Events
 
 Subscribe with `on()` or `once()`:
 
 ```js
-const off = vault.on((ctx, id)=>{
-    console.log(ctx.status, id, ctx.data, ctx.error);
+const off = vault.on(ctx=>{
+    console.log(ctx.status, ctx.path, ctx.data, ctx.error);
 });
 
 off();
@@ -219,20 +239,49 @@ The event context has:
 | `data` | Current data, when available. |
 | `error` | Current error, when available. |
 | `before` | Previous `{ status, data }` snapshot. |
+| `path` | Cell path array. |
+
+Operation extra fields are copied directly onto the context:
+
+```js
+vault.on(ctx=>{
+    console.log(ctx.origin);
+});
+
+await vault.set({ value:1 }, { origin:"manual-save" });
+```
 
 `emitter` wraps event dispatch:
 
 ```js
 const vault = createVault({
-    emitter:(emit, ctx, ...args)=>{
-        if (ctx.status === "ready") { emit(ctx, ...args); }
+    emitter:(emit, ctx)=>{
+        if (ctx.status === "ready") { emit(ctx); }
     }
 });
 ```
 
-## TTL And Destroy
+## Passive Sync
 
-`ttl` marks non-persistent values for expiry. Expired cells reset to `expired` when they are accessed. When `ttl` is enabled, vault-kit also creates a cleanup interval at `ttl / 2`; in Node.js this interval is `unref()`'d and it is always cleared by `destroy()`.
+Use top-level `init` to connect passive remote updates. The setter receives `(data, path = [], extra = {})`.
+
+```js
+const client = createVault({
+    hasMany:true,
+    init:set=>{
+        socket.on("note", note=>{
+            set(note, [note.id], { origin:"socket" });
+        });
+    },
+    remote:{
+        pull:({ path })=>api.get(path[0])
+    }
+});
+```
+
+## TTL
+
+`ttl` marks non-persistent values for expiry. Expired cells reset to `expired` when they are accessed.
 
 ```js
 const vault = createVault({ ttl:5000 });
@@ -242,29 +291,27 @@ await vault.set({ value:1 });
 setTimeout(()=>console.log(vault.getStatus()), 6000); // expired
 ```
 
-`destroy()` resets all cells to `destroyed`, clears internal cleanup, calls remote cleanup, and makes future access invalid.
-
 ## API
 
 | Method | Description |
 |--------|-------------|
-| `get(...args)` | Returns cached data or starts `remote.pull()`. |
-| `set(data, ...args)` | Stores local data or pushes to remote. |
-| `act(action, params, ...args)` | Runs an action through the write pipeline. |
-| `act.name(params, ...args)` | Proxy shorthand for `act("name", params, ...args)`. |
-| `getStatus(...args)` | Returns the current status. |
-| `getData(...args)` | Returns cached data without pulling. |
-| `getError(...args)` | Returns the current error. |
-| `isStatus(statusOrList, ...args)` | Checks the current status. |
-| `has(...args)` | Resolves to `true` when `get()` returns a non-`undefined` value. |
-| `reset(...args)` | Resets one cell to `init`. |
-| `resetAll(...args)` | Resets every cell to `init`. |
-| `destroy(...args)` | Resets every cell to `destroyed` and runs cleanup. |
+| `at(...path)` | Returns a port bound to a deeper path. |
+| `get(extra)` | Returns cached data or starts `remote.pull()`. |
+| `set(data, extra)` | Stores local data or pushes to remote. |
+| `act(action, data, extra)` | Runs an action through the write pipeline. |
+| `act.name(data, extra)` | Proxy shorthand for `act("name", data, extra)`. |
+| `getStatus()` | Returns the current status. |
+| `getData()` | Returns cached data without pulling. |
+| `getError()` | Returns the current error. |
+| `isStatus(statusOrList)` | Checks the current status. |
+| `has(extra)` | Resolves to `true` when `get()` returns a non-`undefined` value. |
+| `reset(extra)` | Resets the bound cell or subtree to `init`. |
 | `on(fn)` | Subscribes to events. Returns an unsubscribe function. |
 | `once(fn)` | Subscribes to the next event only. |
-| `forEach(fn)` | Iterates cached cells. |
-| `collect(object, fn)` | Iterates cached cells and returns the collector. |
+| `forEach(fn, extra)` | Iterates cached cells from a multi-cell port. |
 | `withActions(target, execute)` | Adds action proxy behavior to a function/object. |
+
+Cell methods such as `get()`, `set()`, `act()`, and `getData()` are available only when the current port is bound to a complete path. `forEach()` is available only while the current port still has child cells.
 
 ## React
 
@@ -272,7 +319,7 @@ setTimeout(()=>console.log(vault.getStatus()), 6000); // expired
 import useVault from "@randajan/vault-kit/react";
 
 function NoteView({ vault, id }) {
-    const note = useVault(vault, id);
+    const note = useVault(vault, [id]);
 
     return (
         <button disabled={note.isStatus(["pull", "push"])} onClick={()=>note.act.increment()}>

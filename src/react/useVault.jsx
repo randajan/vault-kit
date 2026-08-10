@@ -10,9 +10,9 @@ import { Vault } from "../class/Vault";
  * @property {Error|undefined} error Current cell error.
  * @property {*} reply Last result returned by set() or act.*().
  * @property {Function} confirm Clears reply and redraws the hook consumer.
- * @property {(data:*, ...args:*)=>Promise<*>} set Writes to the bound vault cell.
+ * @property {(data:*, extra?:Object)=>Promise<*>} set Writes to the bound vault cell.
  * @property {Object} act Action proxy bound to the selected cell.
- * @property {(statuses:string|string[], ...args:*)=>boolean} isStatus Status helper.
+ * @property {(statuses:string|string[])=>boolean} isStatus Status helper.
  */
 
 const validateVault = (vault) => {
@@ -44,7 +44,7 @@ const createController = (vault, redraw, path=[], autoInit=true) => {
         const { status, before } = ctx;
         if (port.hasRemote) {
             if (status === "init" || status === "expired") { fallback = before.data; port.get(); }
-            else if (status === "ready" || status === "error" || status === "destroyed") { fallback = undefined; }
+            else if (status === "ready" || status === "error") { fallback = undefined; }
         }
         redraw(Symbol());
     });
@@ -64,7 +64,8 @@ const createController = (vault, redraw, path=[], autoInit=true) => {
  * fallback while the hook starts a fresh pull.
  *
  * @param {Vault} vault Vault instance.
- * @param {path*} a Cell path
+ * @param {Array} [path=[]] Cell path.
+ * @param {boolean} [autoInit=true] Starts a pull immediately for remote cells.
  * @returns {VaultPort}
  */
 export const useVault = (vault, path=[], autoInit=true)=>{
@@ -76,4 +77,3 @@ export const useVault = (vault, path=[], autoInit=true)=>{
 
     return ctrl;
 }
-
