@@ -89,7 +89,7 @@ export class Cells {
         this.wasDestroyed = (status === "destroyed");
 
         let c = 0;
-        for (const [id, cell] of _cont.entries()) {
+        for (const [id, cell] of [..._cont.entries()]) {
             c += cell.reset(status, ice([...path, id]), extra);
         }
 
@@ -108,7 +108,7 @@ export class Cells {
             const id = path[level];
             _cont.get(id)?.forEach(exe, path, extra);
         } else {
-            for (const [id, cell] of _cont.entries()) {
+            for (const [id, cell] of [..._cont.entries()]) {
                 cell.forEach(exe, ice([...path, id]), extra);
             }
         }
