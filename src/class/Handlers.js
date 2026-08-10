@@ -2,29 +2,35 @@ import { toFn } from "../tools";
 
 
 export class Handlers {
-    constructor(emitter) {
-        this.list = [];
+    constructor(emitter, filter=(ctx, selector)=>true, catcher=(err)=>{}) {
+        this._list = [];
 
-        const run = (...args)=>{
-            for (const fn of [...this.list]) { fn(...args); }
+        const run = (ctx)=>{
+            for (const [fn, selector] of [...this._list]) {
+                if (!filter(ctx, selector)) { continue; }
+                let err, ok = true;
+                try { fn(ctx); } catch(error) { err = error; ok = false; }
+                if (!ok) { try { catcher(err); } catch {}; }
+            }
         }
 
         this.run = !emitter ? run : (...a)=>emitter(run, ...a);
     }
 
-    on(fn) {
+    on(fn, selector) {
         fn = toFn(fn, "fn argument", true);
-        const { list } = this;
-        list.push(fn);
+        const { _list } = this;
+        const rec = [fn, selector];
+        _list.push(rec);
         return () => {
-            const x = list.indexOf(fn);
-            if (x >= 0) { list.splice(x, 1); }
+            const x = _list.indexOf(rec);
+            if (x >= 0) { _list.splice(x, 1); }
         }
     }
 
-    once(fn) {
+    once(fn, selector) {
         let rem;
-        return rem = this.on((...a)=>{ rem(); return fn(...a); });
+        return rem = this.on((...a)=>{ rem(); return fn(...a); }, selector);
     }
 
 }

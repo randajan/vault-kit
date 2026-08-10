@@ -2,50 +2,114 @@ import { Cell } from "./Cell";
 
 
 
-export class Cells extends Map {
+export class Cells {
 
-    constructor(_vault) {
-        super();
+    constructor(_vault, level = 0, unmount = () => { }) {
         this._vault = _vault;
+        this._cont = new Map();
+        this.level = level;
+        this.unmountSelf = unmount;
+        this.isDestroyed = false;
     }
 
-    pick(id) {
-        const c = super.get(id);
-        return c?.isExpired() ? this.reset("expired", id) : c;
+    notDestroyed() {
+        if (!this.isDestroyed) { return true; }
+        throw new Error("Was destroyed before");
     }
 
-    async get(id, ...a) {
-        const { _vault } = this;
-        let c = this.pick(id);
-        if (!c) {
-            if (!_vault.remote) { return; }
-            super.set(id, c = new Cell(_vault));
-        }
-        return c.get(id, ...a);
+    unmountSub(path) {
+        const { _cont, level, isDestroyed } = this;
+        const id = path[level];
+        _cont.delete(id);
+        if (_cont.size || isDestroyed) { return; }
+        this.unmountSelf(path);
     }
 
-    ensure(id) {
-        let c = super.get(id);
-        if (!c) { super.set(id, c = new Cell(this._vault)); }
+    mountSub(id) {
+        const { _vault, level, _cont } = this;
+        const depthBelow = _vault.depth - level - 1;
+        const unmount = this.unmountSub.bind(this);
+        const c = depthBelow > 0 ? new Cells(_vault, level + 1, unmount) : new Cell(_vault, unmount);
+        _cont.set(id, c);
         return c;
     }
 
-    async setReady(mode, data, id, ...a) {
-        return this.ensure(id).setReady(mode, data, id, ...a);
+    pick(path=[]) {
+        const { level, _cont } = this;
+        const id = path[level];
+        return _cont.get(id)?.pick(path);
     }
 
-    async set(data, id, ...a) {
-        return this.ensure(id).set(data, id, ...a);
+    async get(path=[], extra={}) {
+        this.notDestroyed();
+
+        const { _vault, level, _cont } = this;
+        const id = path[level];
+        let c = _cont.get(id);
+        if (!c) {
+            if (!_vault.remote) { return; }
+            c = this.mountSub(id);
+        }
+        return c.get(path, extra);
     }
 
-    reset(status, id, ...a) {
-        const c = super.get(id);
-        super.delete(id);
-        return c?.reset(status, id, ...a);
+    ensure(id) {
+        const { _cont } = this;
+        return _cont.get(id) || this.mountSub(id);
     }
 
-    resetAll(status, ...a) {
-        const ids = [...this.keys()];
-        for (const id of ids) { this.reset(status, id, ...a); }
+    async setReady(mode, data, path=[], extra={}) {
+        const id = path[this.level];
+        return this.ensure(id).setReady(mode, data, path, extra);
     }
+
+    async set(data, path=[], extra={}) {
+        this.notDestroyed();
+
+        const id = path[this.level];
+        return this.ensure(id).set(data, path, extra);
+    }
+
+    reset(status, path=[], extra={}) {
+        this.notDestroyed();
+
+        const { level, _cont } = this;
+        const onlyOne = path.length > level;
+
+        if (onlyOne) {
+            const id = path[level];
+            const c = _cont.get(id)?.reset(status, path, extra);
+            return c || 0;
+        }
+
+        this.isDestroyed = (status === "destroyed");
+
+        let c = 0;
+        for (const [id, cell] of _cont.entries()) {
+            c += cell.reset(status, Object.freeze([...path, id]), extra);
+        }
+
+        if (this.isDestroyed) { _cont.clear(); }
+
+        return c;
+    }
+
+    forEach(exe, path=[], extra={}) {
+        this.notDestroyed();
+
+        const { _cont, level } = this;
+        const onlyOne = path.length > level;
+
+        if (onlyOne) {
+            const id = path[level];
+            _cont.get(id)?.forEach(exe, path, extra);
+        } else {
+            for (const [id, cell] of _cont.entries()) {
+                cell.forEach(exe, Object.freeze([...path, id]), extra);
+            }
+        }
+
+
+    }
+
 }

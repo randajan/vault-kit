@@ -1,9 +1,9 @@
-
 export class Cell {
 
-    constructor(_vault) {
+    constructor(_vault, unmount=()=>{}) {
         this.status = "init";
         this._vault = _vault;
+        this.unmountSelf = unmount;
     }
 
     notDestroyed() {
@@ -13,48 +13,62 @@ export class Cell {
 
     isExpired() { return this.expiresAt && (this.expiresAt < Date.now()); }
 
-    onSet(persistent, before, ...a) {
-        const { _vault, status, data, error } = this;
+    onSet(persistent, before={}, path=[], extra={}) {
+        const { _vault, status, data, error, currentTimeoutId } = this;
         const { ttl, handlers } = _vault;
-        if (persistent) { delete this.expiresAt; }
-        else if (ttl > 0) { this.expiresAt = Date.now() + ttl; }
 
-        return handlers.run({status, data, error, before}, ...a);
+        if (currentTimeoutId != null) { clearInterval(currentTimeoutId); }
+        if (persistent) { delete this.expiresAt; }
+        else if (ttl > 0) {
+            this.expiresAt = Date.now() + ttl;
+            const tid = this.currentTimeoutId = setTimeout(_=>this.pick(path), ttl);
+            tid.unref?.();
+        }
+        
+        return handlers.run(Object.freeze({
+            ...extra,
+            status,
+            data,
+            error,
+            before:Object.freeze(before),
+            path,
+        }));
     }
 
-    async fetchRemote(status, data, ...a) {
+    async fetchRemote(status, data, path=[], extra={}) {
         try {
             const { push, pull } = this._vault.remote;
-            const prom = status === "push" ? push(data, ...a) : pull(...a);
-            return this.setReady(status, await prom, ...a);
+            const packet = Object.freeze({...extra, data, path});
+            const prom = status === "push" ? push(packet) : pull(packet);
+            return this.setReady(status, await prom, path, extra);
         } catch(err) {
-            throw this.setError(err);
+            throw this.setError(err, path, extra);
         }
     };
 
-    setProm(status, data, ...a) {
+    setProm(status, data, path=[], extra={}) {
         const { data:d, status:s } = this;
 
         this.status = status;
-        this.prom = this.fetchRemote(status, data, ...a);
+        this.prom = this.fetchRemote(status, data, path, extra);
         delete this.error;
 
-        this.onSet(true, { data:d, status:s }, ...a);
+        this.onSet(true, { data:d, status:s }, path, extra);
         return this.prom;
     }
 
-    setError(err, ...a) {
+    setError(err, path=[], extra={}) {
         const { data:d, status:s } = this;
 
         this.status = "error"
         this.error = err;
         delete this.prom;
 
-        this.onSet(false, { data:d, status:s }, ...a);
+        this.onSet(false, { data:d, status:s }, path, extra);
         return err;
     }
 
-    async setReady(mode, data, ...a) { //mode = push|pull|remote|local
+    async setReady(mode, data, path=[], extra={}) { //mode = push|pull|remote|local
         const { _vault, data:d, status:s } = this;
         const { unfold, trait, purge } = _vault;
 
@@ -69,38 +83,42 @@ export class Cell {
         delete this.error;
         delete this.prom;
 
-        this.onSet(false, { data:d, status:s }, ...a);
+        this.onSet(false, { data:d, status:s }, path, extra);
+
         return res;
     }
 
-    pick() { return this.isExpired() ? this.reset("expired") : this; }
+    pick(path=[]) {
+        if (this.isExpired()) { this.reset("expired", path); }
+        return this;
+    }
 
-    async get(...a) {
+    async get(path=[], extra={}) {
         this.notDestroyed();
         
-        const { _vault, status, data, prom } = this.pick();
+        const { _vault, status, data, prom } = this.pick(path);
         const { remote } = _vault;
         if (status === "ready") { return data; }
         if (!remote) { return; }
         if (status === "pull") { return prom; } //same same
         if (status === "push") { await prom; return this.data; }
 
-        return this.setProm("pull", undefined, ...a);
+        return this.setProm("pull", undefined, path, extra); //packet
     }
 
-    async set(data, ...a) {
+    async set(data, path=[], extra={}) {
         this.notDestroyed();
 
         const { _vault, prom } = this;
         const { remote, act } = _vault;
 
-        if (!remote) { return this.setReady("local", await act(data, ...a), ...a); }
+        if (!remote) { return this.setReady("local", await act(data, path, extra), path, extra); }
 
-        const push = async _=>this.setProm("push", await act(data, ...a), ...a);
+        const push = async _=>this.setProm("push", await act(data, path, extra), path, extra);
         return !prom ? push() : (this.prom = this.prom.then(push));
     }
 
-    reset(status, ...a) {
+    reset(status, path=[], extra={}) {
         this.notDestroyed();
 
         const { _vault, data:d, status:s } = this;
@@ -109,7 +127,7 @@ export class Cell {
         try {
             if (this.data != null) { purge(this.data); }
         } catch(err) {
-            throw this.setError(err);
+            throw this.setError(err, path, extra);
         }
 
         this.status = status;
@@ -118,12 +136,17 @@ export class Cell {
         delete this.error;
         delete this.expiresAt;
 
-        this.onSet(true, { status:s, data:d }, ...a);
+        if (status !== "destroyed") { this.unmountSelf(path); }
+        this.onSet(true, { status:s, data:d }, path, extra);
 
-        return this;
+        return 1;
     }
 
-    resetAll(status, ...a) {
-        return this.reset(status, ...a);
+    forEach(exe, path=[], extra={}) {
+        this.notDestroyed();
+        
+        const { status, data, error } = this.pick(path);
+        exe(Object.freeze({ ...extra, status, data, error, path }));
     }
+
 }

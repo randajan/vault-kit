@@ -74,7 +74,8 @@ export const VaultView = _=>{
     const [busy, setBusy] = useState("");
     const [probe, setProbe] = useState("");
 
-    const port = useVault(client, active);
+    const activePort = useMemo(_=>client.at(active), [active]);
+    const port = useVault(client, [active]);
     const data = port.data;
     const dataKey = toJson(data);
 
@@ -167,15 +168,15 @@ export const VaultView = _=>{
                     </div>
 
                     <div className="actions">
-                        <button disabled={isBusy} onClick={_=>run("pull", _=>client.get(active))}>Pull</button>
+                        <button disabled={isBusy} onClick={_=>run("pull", _=>activePort.get())}>Pull</button>
                         <button disabled={isBusy} onClick={_=>run("set", _=>port.set(payload()))}>Set</button>
                         <button disabled={isBusy} onClick={_=>run("act +1", _=>port.act.increment({ step:1 }))}>Act +1</button>
                         <button disabled={isBusy} onClick={_=>run("toggle", _=>port.act.toggle())}>Toggle</button>
                         <button disabled={isBusy} onClick={_=>run("server", _=>pushServerUpdate(active))}>Server event</button>
                         <button disabled={isBusy} onClick={_=>run("timeout", _=>port.act.stall())}>Timeout</button>
                         <button disabled={isBusy} onClick={_=>run("fail", _=>port.act.fail())}>Fail</button>
-                        <button disabled={isBusy} onClick={_=>client.reset(active, "manual-reset")}>Reset</button>
-                        <button disabled={isBusy} onClick={_=>run("has", async _=>setProbe(`has: ${await client.has(active)}`))}>Has</button>
+                        <button disabled={isBusy} onClick={_=>activePort.reset({ origin:"manual-reset" })}>Reset</button>
+                        <button disabled={isBusy} onClick={_=>run("has", async _=>setProbe(`has: ${await activePort.has()}`))}>Has</button>
                         <button disabled={isBusy} onClick={_=>run("reset all", resetDemoData)}>Reset all</button>
                     </div>
 

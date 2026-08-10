@@ -36,13 +36,17 @@ const listeners = new Set();
 const eventId = _=>`${Date.now()}-${Math.random().toString(16).slice(2)}`;
 const messageOf = error=>error?.message || (error ? String(error) : "");
 
-const emitEvent = (source, ctx={}, id="single", origin="")=>{
+const portOf = (vault, id)=>vault.at(id);
+
+const emitEvent = (source, ctx={})=>{
+    const [ id="single" ] = ctx.path || [];
+
     events.unshift({
         key:eventId(),
         at:now(),
         source,
         id,
-        origin,
+        origin:ctx.origin || "",
         status:ctx.status,
         title:ctx.data?.title,
         score:ctx.data?.score,
@@ -64,14 +68,14 @@ export const subscribeEvents = listener=>{
 
 export const server = window.server = createVault({
     hasMany:true,
-    emitter:(emit, ctx, ...args)=>{
-        emitEvent("server", ctx, ...args);
-        emit(ctx, ...args);
+    emitter:(emit, ctx)=>{
+        emitEvent("server", ctx);
+        emit(ctx);
     }
 });
 
 for (const id of recordIds) {
-    server.set(copy(defaults[id]), id, "seed");
+    portOf(server, id).set(copy(defaults[id]), { origin:"seed" });
 }
 
 const emptyRecord = id=>({
@@ -82,19 +86,22 @@ const emptyRecord = id=>({
     updatedAt:now()
 });
 
-const saveRecord = (id, patch={})=>({
-    ...emptyRecord(id),
-    ...copy(server.getData(id)),
-    ...copy(patch),
-    score:Number(patch.score ?? server.getData(id)?.score ?? 0),
-    flagged:Boolean(patch.flagged ?? server.getData(id)?.flagged),
-    updatedAt:now()
-});
+const saveRecord = (id, patch={})=>{
+    const current = portOf(server, id).getData();
+    return {
+        ...emptyRecord(id),
+        ...copy(current),
+        ...copy(patch),
+        score:Number(patch.score ?? current?.score ?? 0),
+        flagged:Boolean(patch.flagged ?? current?.flagged),
+        updatedAt:now()
+    };
+};
 
 const applyRemoteInput = async (input, id)=>{
     if (!input?.action) { return saveRecord(id, input); }
 
-    const params = input.params || {};
+    const params = input.data || input.params || {};
     const current = saveRecord(id);
 
     if (input.action === "increment") {
@@ -117,35 +124,39 @@ const applyRemoteInput = async (input, id)=>{
     throw new Error(`Unknown action '${input.action}'`);
 };
 
+const syncServerUpdates = set=>{
+    const stop = server.on(ctx=>{
+        if (ctx.status !== "ready" || ctx.origin === "client-push") { return; }
+        set(copy(ctx.data), ...ctx.path);
+    });
+    return stop;
+};
+
 export const client = window.client = createVault({
     hasMany:true,
     ttl:6000,
+    init:syncServerUpdates,
     remote:{
         timeout:900,
-        init:set=>{
-            const stop = server.on((ctx, id, origin)=>{
-                if (ctx.status !== "ready" || origin === "client-push") { return; }
-                set(copy(ctx.data), id, "server-event");
-            });
-            return stop;
-        },
-        pull:async id=>{
+        pull:async ({ path })=>{
+            const [ id ] = path;
             await sleep(280);
-            return copy(server.getData(id) || emptyRecord(id));
+            return copy(portOf(server, id).getData() || emptyRecord(id));
         },
-        push:async (input, id)=>{
+        push:async ({ data:input, path })=>{
+            const [ id ] = path;
             await sleep(420);
             const record = await applyRemoteInput(input, id);
-            await server.set(record, id, "client-push");
+            await portOf(server, id).set(record, { origin:"client-push" });
             return { record, syncedAt:now() };
         }
     },
     unfold:"record",
     trait:data=>data ? { ...copy(data), cachedAt:now() } : data,
     purge:data=>emitEvent("client", { status:"purge", data }),
-    emitter:(emit, ctx, ...args)=>{
-        emitEvent("client", ctx, ...args);
-        emit(ctx, ...args);
+    emitter:(emit, ctx)=>{
+        emitEvent("client", ctx);
+        emit(ctx);
     }
 });
 
@@ -155,20 +166,21 @@ export const pushServerUpdate = async id=>{
         title:`${current.title.replace(/\s\([0-9]+\)$/, "")} (${current.score + 1})`,
         score:current.score + 1
     });
-    await server.set(record, id, "server-direct");
+    await portOf(server, id).set(record, { origin:"server-direct" });
     return record;
 };
 
 export const resetDemoData = async _=>{
-    client.resetAll("demo-reset");
-    await Promise.all(recordIds.map(id=>server.set(copy(defaults[id]), id, "server-reset")));
+    client.reset({ origin:"reset-all" });
+    await Promise.all(recordIds.map(id=>portOf(server, id).set(copy(defaults[id]), { origin:"server-reset" })));
 };
 
 export const getSnapshot = vault=>recordIds.reduce((out, id)=>{
+    const port = portOf(vault, id);
     out[id] = {
-        status:vault.getStatus(id),
-        data:vault.getData(id),
-        error:messageOf(vault.getError(id))
+        status:port.getStatus(),
+        data:port.getData(),
+        error:messageOf(port.getError())
     };
     return out;
 }, {});

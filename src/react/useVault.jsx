@@ -2,6 +2,8 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Vault } from "../class/Vault";
 
 /**
+ * @preserve
+ *
  * @typedef {Object} VaultPort
  * @property {import("../class/Vault").VaultStatus} status Current cell status.
  * @property {*} data Cached data or remote fallback while a refresh is pending.
@@ -18,58 +20,60 @@ const validateVault = (vault) => {
 };
 
 
-const createPort = (vault, redraw, ...a) => {
+const createController = (vault, redraw, path=[], autoInit=true) => {
     validateVault(vault);
+    const port = path.length ? vault.at(...path) : vault;
 
     let reply, fallback;
 
-    const d = async (action, params, ...e)=>reply = await vault.act(action, params, ...a, ...e);
+    const d = async (action, data, extra)=>reply = await port.act(action, data, extra);
     
     const enumerable = true;
-    const port = Object.defineProperties({}, {
-        status: { enumerable, get:() => vault.getStatus(...a) },
-        data: { enumerable, get: () => vault.getData(...a) || fallback },
-        error: { enumerable, get: () => vault.getError(...a) },
+    const ctrl = Object.defineProperties({}, {
+        status: { enumerable, get:() => port.getStatus() },
+        data: { enumerable, get: () => port.getData() || fallback },
+        error: { enumerable, get: () => port.getError() },
         reply: { enumerable, get: () => reply },
         confirm: { value:() => { reply = undefined; redraw(Symbol()); } },
-        set:{ value:async (data, ...e) =>reply = await vault.set(data, ...a, ...e)},
-        act:{ value:vault.withActions(d, d) },
-        isStatus: { value:(statuses, ...e) =>vault.isStatus(statuses, ...a, ...e) },
+        set:{ value:async (data, extra) =>reply = await port.set(data, extra)},
+        act:{ value:port.withActions(d, d) },
+        isStatus: { value:statuses=>port.isStatus(statuses) },
     });
 
-    const cleanUp = vault.on((ctx, ...e) => {
-        for (const i in a) { if (e[i] != a[i]) { return; } }
+    const cleanUp = port.on(ctx=> {
         const { status, before } = ctx;
-        if (vault.hasRemote) {
-            if (status === "init" || status === "expired") { fallback = before.data; vault.get(...a); }
+        if (port.hasRemote) {
+            if (status === "init" || status === "expired") { fallback = before.data; port.get(); }
             else if (status === "ready" || status === "error" || status === "destroyed") { fallback = undefined; }
         }
         redraw(Symbol());
     });
 
-    vault.get(...a);
+    if (autoInit) { port.get(); }
 
-    return [ port, cleanUp ];
+    return [ ctrl, cleanUp ];
 };
 
 
 /**
+ * @preserve
+ *
  * React binding for one vault cell.
  *
  * For remote vaults, reset and expiry keep the previous data as a temporary
  * fallback while the hook starts a fresh pull.
  *
  * @param {Vault} vault Vault instance.
- * @param {...*} a Cell id and extra arguments.
+ * @param {path*} a Cell path
  * @returns {VaultPort}
  */
-export const useVault = (vault, ...a)=>{
+export const useVault = (vault, path=[], autoInit=true)=>{
     const redraw = useState(0)[1];
 
-    const [ port, cleanUp ] = useMemo(_=>createPort(vault, redraw, ...a), [vault, ...a]);
+    const [ ctrl, cleanUp ] = useMemo(_=>createController(vault, redraw, path, autoInit), [vault, ...path, autoInit]);
 
     useEffect(_=>cleanUp, [cleanUp]);
 
-    return port;
+    return ctrl;
 }
 
