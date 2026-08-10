@@ -27,6 +27,8 @@ export const formatRemote = (remote, reqPreserveAction=false) => {
     const timeout = remote.timeout = toRng(remote.timeout, 0, 2147483647, m + ".timeout") ?? 5000;
     const push = toFn(remote.push, m + ".push");
     const pull = toFn(remote.pull, m + ".pull", true);
+    remote.init = toFn(remote.init, m + ".init");
+    remote.destroy = toFn(remote.destroy, m + ".destroy");
     remote.push = !push || !timeout ? push : (...args)=>withTimeout(push(...args), timeout);
     remote.pull = !timeout ? pull : (...args)=>withTimeout(pull(...args), timeout);
     remote.preserveAction = toBol(remote.preserveAction, m + ".preserveAction", reqPreserveAction);

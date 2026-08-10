@@ -10,13 +10,21 @@ export class Cells {
         this._cont = new Map();
         this.level = level;
         this.unmountSelf = unmount;
+        this.wasDestroyed = false;
+    }
+
+    isDestroyed(throwError=true) {
+        if (!this.wasDestroyed) { return false; }
+        if (!throwError) { return true; }
+        throw new Error("Was destroyed before");
     }
 
     unmountSub(path) {
-        const { _cont, level } = this;
+        const { _cont, level, wasDestroyed } = this;
         const id = path[level];
         _cont.delete(id);
-        if (!_cont.size) { this.unmountSelf(path); }
+        if (_cont.size || wasDestroyed) { return; }
+        this.unmountSelf(path);
     }
 
     mountSub(id) {
@@ -35,6 +43,8 @@ export class Cells {
     }
 
     async get(path=[], extra={}) {
+        this.isDestroyed();
+
         const { _vault, level, _cont } = this;
         const id = path[level];
         let c = _cont.get(id);
@@ -52,17 +62,21 @@ export class Cells {
         return _cont.get(id) || this.mountSub(id);
     }
 
-    async setReady(isResponse, data, path=[], extra={}) {
+    async setInit(data, path=[], extra={}) {
+        this.isDestroyed();
         const id = path[this.level];
-        return this.ensure(id).setReady(isResponse, data, path, extra);
+        return this.ensure(id).setInit(data, path, extra);
     }
 
     async set(data, path=[], extra={}) {
+        this.isDestroyed();
         const id = path[this.level];
         return this.ensure(id).set(data, path, extra);
     }
 
     reset(status, path=[], extra={}) {
+        this.isDestroyed();
+
         const { level, _cont } = this;
         const onlyOne = path.length > level;
 
@@ -72,15 +86,21 @@ export class Cells {
             return c || 0;
         }
 
+        this.wasDestroyed = (status === "destroyed");
+
         let c = 0;
         for (const [id, cell] of _cont.entries()) {
             c += cell.reset(status, ice([...path, id]), extra);
         }
 
+        if (this.wasDestroyed) { _cont.clear(); }
+
         return c;
     }
 
     forEach(exe, path=[], extra={}) {
+        this.isDestroyed();
+
         const { _cont, level } = this;
         const onlyOne = path.length > level;
 
@@ -92,7 +112,6 @@ export class Cells {
                 cell.forEach(exe, ice([...path, id]), extra);
             }
         }
-
 
     }
 

@@ -9,6 +9,12 @@ export class Cell {
         this.unmountSelf = unmount;
     }
 
+    isDestroyed(throwError=true) {
+        if (this.status !== "destroyed") { return false; }
+        if (!throwError) { return true; }
+        throw new Error("Was destroyed before");
+    }
+
     isExpired() { return this.expiresAt && (this.expiresAt < Date.now()); }
 
     onSet(persistent, before={}, path=[], extra={}) {
@@ -70,8 +76,7 @@ export class Cell {
         return err;
     }
 
-    //(mode === "local" || mode === "push") = isResponse
-    async setReady(isResponse, data, path=[], extra={}) { //mode = push|pull|remote|local
+    async setReady(isResponse, data, path=[], extra={}) {
         const { _vault, data:d, status:s } = this;
         const { unfold, trait, purge } = _vault;
 
@@ -96,7 +101,14 @@ export class Cell {
         return this;
     }
 
+    async setInit(data, path=[], extra={}) {
+        this.isDestroyed();
+        return this.setReady(false, data, path, extra);
+    }
+
     async get(path=[], extra={}) {
+        this.isDestroyed();
+
         const { _vault, status, data, prom } = this.pick(path);
         const { remote } = _vault;
         
@@ -109,6 +121,8 @@ export class Cell {
     }
 
     async set(data, path=[], extra={}) {
+        this.isDestroyed();
+
         const { _vault, prom } = this;
         const { remote, act } = _vault;
 
@@ -119,6 +133,8 @@ export class Cell {
     }
 
     reset(status, path=[], extra={}) {
+        this.isDestroyed();
+
         const { _vault, data:d, status:s } = this;
         const { purge } = _vault;
 
@@ -134,13 +150,15 @@ export class Cell {
         delete this.error;
         delete this.expiresAt;
 
-        this.unmountSelf(path);
+        if (status !== "destroyed") { this.unmountSelf(path); }
         this.onSet(true, { status:s, data:d }, path, extra);
 
         return 1;
     }
 
-    forEach(exe, path=[], extra={}) {      
+    forEach(exe, path=[], extra={}) {     
+        this.isDestroyed();
+
         const { status, data, error } = this.pick(path);
         exe(ice({ ...extra, status, data, error, path }));
     }

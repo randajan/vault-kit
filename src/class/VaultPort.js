@@ -45,6 +45,7 @@ export class VaultPort {
      * @returns {VaultPort}
      */
     at(...path) {
+        if (!path.length) { return this; }
         const _vault = _privates.get(this);
         return new VaultPort(_vault, [...this.path, ...path], this.level);
     }
@@ -146,7 +147,7 @@ export class VaultPort {
      * Sends an action request through the same write pipeline as set().
      *
      * @param {string} action Action name.
-     * @param {*} data Action parameters.
+     * @param {*} data Action data.
      * @param {Object} [extra={}] Custom fields added to the emitted context and remote packet.
      * @returns {Promise<*>}
      */
@@ -167,6 +168,21 @@ export class VaultPort {
      */
     reset(extra={}) {
         _privates.get(this).store.reset("init", this.path, toExtra(extra));
+        return this;
+    }
+
+    /**
+     * @preserve
+     *
+     * Destroys the bound cell or subtree and runs remote cleanup.
+     *
+     * Destroy is intentionally terminal: future access to destroyed cells throws.
+     *
+     * @param {Object} [extra={}] Custom fields added to the emitted context and remote destroy packet.
+     * @returns {this}
+     */
+    destroy(extra={}) {
+        _privates.get(this).destroy(this.path, toExtra(extra));
         return this;
     }
 

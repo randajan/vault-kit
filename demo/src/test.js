@@ -101,11 +101,11 @@ const saveRecord = (id, patch={})=>{
 const applyRemoteInput = async (input, id)=>{
     if (!input?.action) { return saveRecord(id, input); }
 
-    const params = input.data || input.params || {};
+    const data = input.data ?? {};
     const current = saveRecord(id);
 
     if (input.action === "increment") {
-        return saveRecord(id, { score:current.score + Number(params.step ?? 1) });
+        return saveRecord(id, { score:current.score + Number(data.step ?? 1) });
     }
 
     if (input.action === "toggle") {
@@ -135,9 +135,9 @@ const syncServerUpdates = set=>{
 export const client = window.client = createVault({
     hasMany:true,
     ttl:6000,
-    init:syncServerUpdates,
     remote:{
         timeout:900,
+        init:syncServerUpdates,
         pull:async ({ path })=>{
             const [ id ] = path;
             await sleep(280);

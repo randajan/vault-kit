@@ -13,7 +13,8 @@ A tiny event-driven data vault for local cache, remote sync, actions, and passiv
 - Local cache with status tracking.
 - Lazy remote `pull()` on first read or after reset/expiry.
 - Remote `push()` on local writes.
-- Passive remote-to-local sync through top-level `init`.
+- Passive remote-to-local sync through `remote.init()`.
+- Lifecycle cleanup through `destroy()` and `remote.destroy()`.
 - Action proxy via `vault.act.someAction(data)`.
 - `ttl` support with timers that do not keep Node.js alive.
 - Remote operation timeouts powered by `@randajan/sleep`.
@@ -88,11 +89,12 @@ Each cell has one of these statuses:
 | Status | Meaning |
 |--------|---------|
 | `init` | Empty or reset. |
-| `pull` | Waiting for `remote.pull()`. |
 | `push` | Waiting for `remote.push()`. |
-| `ready` | Data is available. |
+| `pull` | Waiting for `remote.pull()`. |
 | `error` | Last pull, push, action, trait, or purge failed. |
+| `ready` | Data is available. |
 | `expired` | TTL expired and the cell was reset. |
+| `destroyed` | Cell or subtree was destroyed and cannot be used again. |
 
 ## Options
 
@@ -108,8 +110,7 @@ const same = new Vault(options);
 | `hasMany` | `boolean` | Enables one path segment. Defaults to `false`. |
 | `depth` | `number` | Number of required path segments. Overrides `hasMany` when greater than `0`. |
 | `readonly` | `boolean` | Blocks `set()` and `act.*()`. |
-| `remote` | `object` | Remote pull/push behavior. |
-| `init` | `(set) => void` | Passive-sync setup. |
+| `remote` | `object` | Remote pull/push/init/destroy adapter. |
 | `ttl` | `number` | Time-to-live in ms. `0` disables expiry. |
 | `actions` | `object` | Local action handlers used by `act()`. |
 | `actionsCatch` | `(error) => data` | Converts action errors into fallback data. |
@@ -120,22 +121,26 @@ const same = new Vault(options);
 
 ### Remote
 
-`pull()` and `push()` receive a frozen packet. Operation extra fields are copied directly onto that packet.
+`pull()`, `push()`, and `destroy()` receive frozen packets. Operation extra fields are copied directly onto those packets.
 
 | Remote option | Type | Description |
 |---------------|------|-------------|
 | `pull` | `(packet) => data \| Promise<data>` | Required when `remote` is used. Called by `get()`. |
 | `push` | `(packet) => data \| Promise<data>` | Called by `set()` and `act.*()`. If missing, the vault is readonly. |
+| `init` | `(set) => initReturn` | Passive-sync setup. Runs once during vault construction. |
+| `destroy` | `(packet, initReturn) => void` | Cleans up remote resources when `destroy()` is called. |
 | `timeout` | `number` | Remote timeout in ms. Defaults to `5000`; `0` disables timeout wrapping. |
 | `preserveAction` | `boolean` | Required when local `actions` and `remote` are both provided. Keeps `{ action, data }` after a local action runs. |
 
-Packet fields:
+Pull and push packet fields:
 
 | Field | Description |
 |-------|-------------|
 | `path` | Cell path array. |
 | `data` | Data being pushed. Only present for `push()`. |
 | `pull` | Helper available during `push()` to read remote data for the same path. |
+
+Destroy receives `{ path, ...extra }` as its packet and the value returned by `remote.init()` as its second argument.
 
 Remote timeouts use `@randajan/sleep.withTimeout()`. Its internal timer is cleaned up when the remote promise settles and uses unref behavior in Node.js, so a pending timeout timer does not keep a process alive by itself.
 
@@ -221,7 +226,7 @@ const vault = createVault({
 
 ## Events
 
-Subscribe with `on()` or `once()`:
+Subscribe with `on()` or `once()`. Listeners receive a single `ctx` object; `ctx.path` identifies the cell.
 
 ```js
 const off = vault.on(ctx=>{
@@ -263,21 +268,25 @@ const vault = createVault({
 
 ## Passive Sync
 
-Use top-level `init` to connect passive remote updates. The setter receives `(data, path = [], extra = {})`.
+Use `remote.init` to connect passive remote updates. The setter receives `(data, path = [], extra = {})`.
 
 ```js
 const client = createVault({
     hasMany:true,
-    init:set=>{
-        socket.on("note", note=>{
-            set(note, [note.id], { origin:"socket" });
-        });
-    },
     remote:{
+        init:set=>{
+            const off = socket.on("note", note=>{
+                set(note, [note.id], { origin:"socket" });
+            });
+            return off;
+        },
+        destroy:(_packet, off)=>off?.(),
         pull:({ path })=>api.get(path[0])
     }
 });
 ```
+
+If `remote.init` returns a cleanup function and `remote.destroy` is not configured, `destroy()` calls that function with the destroy packet.
 
 ## TTL
 
@@ -306,12 +315,15 @@ setTimeout(()=>console.log(vault.getStatus()), 6000); // expired
 | `isStatus(statusOrList)` | Checks the current status. |
 | `has(extra)` | Resolves to `true` when `get()` returns a non-`undefined` value. |
 | `reset(extra)` | Resets the bound cell or subtree to `init`. |
+| `destroy(extra)` | Destroys the bound cell or subtree and runs remote cleanup. |
 | `on(fn)` | Subscribes to events. Returns an unsubscribe function. |
 | `once(fn)` | Subscribes to the next event only. |
 | `forEach(fn, extra)` | Iterates cached cells from a multi-cell port. |
 | `withActions(target, execute)` | Adds action proxy behavior to a function/object. |
 
 Cell methods such as `get()`, `set()`, `act()`, and `getData()` are available only when the current port is bound to a complete path. `forEach()` is available only while the current port still has child cells.
+
+`destroy()` is terminal. Use `reset()` for cache invalidation when a cell should be usable again later.
 
 ## React
 

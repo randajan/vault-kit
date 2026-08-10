@@ -5,7 +5,7 @@ import { VaultPrivate } from "./VaultPrivate";
 /**
  * @preserve
  *
- * @typedef {"init"|"push"|"pull"|"error"|"ready"|"expired"} VaultStatus
+ * @typedef {"init"|"push"|"pull"|"error"|"ready"|"expired"|"destroyed"} VaultStatus
  */
 
 /**
@@ -56,12 +56,25 @@ import { VaultPrivate } from "./VaultPrivate";
 /**
  * @preserve
  *
+ * Packet passed to remote destroy handlers and init cleanup functions.
+ *
+ * Operation extra fields are copied directly onto the packet.
+ *
+ * @typedef {Object} VaultDestroyPacket
+ * @property {Array} path Destroyed cell path.
+ */
+
+/**
+ * @preserve
+ *
  * Remote adapter used by a vault.
  *
  * @typedef {Object} VaultRemoteOptions
  * @property {number} [timeout=5000] Timeout for pull and push in milliseconds. Use 0 to disable wrapping.
+ * @property {(set:RemoteSetter)=>*} [init] Passive-sync setup. Its return value is passed to destroy.
  * @property {(packet:VaultRemotePacket)=>*|Promise<*>} pull Reads from the remote source.
  * @property {(packet:VaultRemotePacket)=>*|Promise<*>} [push] Writes to the remote source. Missing push makes the vault readonly.
+ * @property {(packet:VaultDestroyPacket, initReturn:*)=>void} [destroy] Cleans up resources.
  * @property {boolean} [preserveAction] Keeps the action envelope after local actions run. Required when remote and actions are used together.
  */
 
@@ -74,8 +87,7 @@ import { VaultPrivate } from "./VaultPrivate";
  * @property {boolean} [hasMany=false] Enables one path segment.
  * @property {number} [depth=0] Number of required path segments. Overrides hasMany when greater than 0.
  * @property {boolean} [readonly=false] Blocks set and act calls.
- * @property {VaultRemoteOptions} [remote] Remote pull/push adapter.
- * @property {(set:RemoteSetter)=>void} [init] Passive-sync setup.
+ * @property {VaultRemoteOptions} [remote] Remote pull/push/init/destroy adapter.
  * @property {number} [ttl=0] Time-to-live in milliseconds. Use 0 to disable expiry.
  * @property {Object.<string, Function>} [actions] Local action handlers.
  * @property {(error:Error)=>*} [actionsCatch] Converts local action errors into data.
@@ -93,7 +105,7 @@ export const _privates = new WeakMap();
  * Public vault facade.
  *
  * A vault owns cached cells, optional remote synchronization, action dispatch,
- * event subscriptions, and cache expiry.
+ * event subscriptions, lifecycle cleanup, and cache expiry.
  */
 export class Vault extends VaultPort {
 
