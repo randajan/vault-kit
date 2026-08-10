@@ -7,13 +7,6 @@ const notHasMany = (vint, methodName) => {
     throw new Error(`Method '${methodName}' is not available for interface that hasMany=true`);
 }
 
-const reqHasMany = (vint, methodName) => {
-    if (vint.hasMany) { return; }
-    throw new Error(`Method '${methodName}' is not available for interface that hasMany=false`);
-}
-
-
-
 export class VaultPort {
 
     constructor(_vault, path = [], baseLevel=0) {
@@ -196,7 +189,6 @@ export class VaultPort {
      * @returns {void}
      */
     forEach(exe, extra={}) {
-        reqHasMany(this, "forEach");
         const { store } = _privates.get(this);
         return store.forEach(exe, this.path, toExtra(extra));
     }
