@@ -175,7 +175,7 @@ export class VaultPort {
      * @returns {this}
      */
     destroy(extra={}) {
-        _privates.get(this).destroy(this.path, toExtra(extra));
+        _privates.get(this).store.reset("destroyed", this.path, toExtra(extra));
         return this;
     }
 
@@ -203,7 +203,7 @@ export class VaultPort {
      * @returns {Function} Unsubscribe function.
      */
     on(fn) {
-        return _privates.get(this).handlers.on(fn, this);
+        return _privates.get(this).handlers.on(fn, this.path);
     }
 
     /**
@@ -215,7 +215,7 @@ export class VaultPort {
      * @returns {Function} Unsubscribe function.
      */
     once(fn) {
-        return _privates.get(this).handlers.once(fn, this);
+        return _privates.get(this).handlers.once(fn, this.path);
     }
 
 

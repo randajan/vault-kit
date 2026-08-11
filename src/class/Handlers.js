@@ -2,10 +2,10 @@ import { toFn } from "../tools";
 
 
 export class Handlers {
-    constructor(emitter, filter=(ctx, selector)=>true, catcher=(err)=>{}) {
+    constructor(filter=(ctx, selector)=>true, catcher=(err)=>{}) {
         this._list = [];
 
-        const run = (ctx)=>{
+        this.run = (ctx)=>{
             for (const [fn, selector] of [...this._list]) {
                 if (!filter(ctx, selector)) { continue; }
                 let err, ok = true;
@@ -13,8 +13,7 @@ export class Handlers {
                 if (!ok) { try { catcher(err); } catch {}; }
             }
         }
-
-        this.run = !emitter ? run : (...a)=>emitter(run, ...a);
+        
     }
 
     on(fn, selector) {

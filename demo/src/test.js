@@ -67,12 +67,10 @@ export const subscribeEvents = listener=>{
 };
 
 export const server = window.server = createVault({
-    hasMany:true,
-    emitter:(emit, ctx)=>{
-        emitEvent("server", ctx);
-        emit(ctx);
-    }
+    hasMany:true
 });
+
+server.on(ctx=>emitEvent("server", ctx));
 
 for (const id of recordIds) {
     portOf(server, id).set(copy(defaults[id]), { origin:"seed" });
@@ -153,12 +151,10 @@ export const client = window.client = createVault({
     },
     unfold:"record",
     trait:data=>data ? { ...copy(data), cachedAt:now() } : data,
-    purge:data=>emitEvent("client", { status:"purge", data }),
-    emitter:(emit, ctx)=>{
-        emitEvent("client", ctx);
-        emit(ctx);
-    }
+    purge:data=>emitEvent("client", { status:"purge", data })
 });
+
+client.on(ctx=>emitEvent("client", ctx));
 
 export const pushServerUpdate = async id=>{
     const current = saveRecord(id);

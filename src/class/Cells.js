@@ -77,7 +77,9 @@ export class Cells {
     reset(status, path=[], extra={}) {
         this.isDestroyed();
 
-        const { level, _cont } = this;
+        const { _vault, level, _cont } = this;
+        const { handlers } = _vault;
+
         const onlyOne = path.length > level;
 
         if (onlyOne) {
@@ -94,6 +96,13 @@ export class Cells {
         }
 
         if (this.wasDestroyed) { _cont.clear(); }
+
+        handlers.run(ice({
+            ...extra,
+            status,
+            path,
+            isBatch:true
+        }));
 
         return c;
     }

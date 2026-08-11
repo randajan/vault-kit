@@ -117,7 +117,6 @@ const same = new Vault(options);
 | `unfold` | `function` or `string` | Extracts stored data from a result. |
 | `trait` | `(data, result) => data` | Transforms data before it is stored. |
 | `purge` | `(oldData) => void` | Runs before old data is discarded. |
-| `emitter` | `(emit, ctx) => void` | Filters, delays, rewrites, or forwards events. |
 
 ### Remote
 
@@ -245,6 +244,7 @@ The event context has:
 | `error` | Current error, when available. |
 | `before` | Previous `{ status, data }` snapshot. |
 | `path` | Cell path array. |
+| `isBatch` | `true` when the context describes a subtree operation. |
 
 Operation extra fields are copied directly onto the context:
 
@@ -254,16 +254,6 @@ vault.on(ctx=>{
 });
 
 await vault.set({ value:1 }, { origin:"manual-save" });
-```
-
-`emitter` wraps event dispatch:
-
-```js
-const vault = createVault({
-    emitter:(emit, ctx)=>{
-        if (ctx.status === "ready") { emit(ctx); }
-    }
-});
 ```
 
 ## Passive Sync

@@ -41,8 +41,8 @@ const createController = (vault, redraw, path=[], autoInit=true) => {
     });
 
     const cleanUp = port.on(ctx=> {
-        const { status, before } = ctx;
-        if (port.hasRemote) {
+        const { status, before, isBatch } = ctx;
+        if (port.hasRemote && !isBatch) {
             if (status === "init" || status === "expired") { fallback = before.data; port.get(); }
             else if (status === "ready" || status === "error") { fallback = undefined; }
         }

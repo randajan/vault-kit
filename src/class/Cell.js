@@ -36,6 +36,7 @@ export class Cell {
             error,
             before:ice(before),
             path,
+            isBatch:false
         }));
     }
 

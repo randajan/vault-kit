@@ -21,6 +21,7 @@ import { VaultPrivate } from "./VaultPrivate";
  * @property {Error} [error] Current error.
  * @property {{ status?:VaultStatus, data?:* }} [before] Previous cell snapshot.
  * @property {Array} path Cell path.
+ * @property {boolean} isBatch Whether this context describes a batch operation.
  */
 
 /**
@@ -94,7 +95,6 @@ import { VaultPrivate } from "./VaultPrivate";
  * @property {Function|string} [unfold] Extracts cached data from set/push results.
  * @property {(data:*, result:*)=>*} [trait] Transforms data before it is stored.
  * @property {(oldData:*)=>void} [purge] Runs before old cached data is discarded.
- * @property {(emit:VaultListener, ctx:VaultContext)=>void} [emitter] Custom event dispatcher.
  */
 
 export const _privates = new WeakMap();
