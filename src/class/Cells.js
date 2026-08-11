@@ -74,7 +74,7 @@ export class Cells {
         return this.ensure(id).set(data, path, extra);
     }
 
-    reset(status, path=[], extra={}) {
+    reset(status, path=[], extra={}, batched=undefined) {
         this.isDestroyed();
 
         const { _vault, level, _cont } = this;
@@ -90,19 +90,34 @@ export class Cells {
 
         this.wasDestroyed = (status === "destroyed");
 
+        const isBatch = !batched;
+
+        if (isBatch) {
+            batched = [];
+            handlers.run(ice({
+                ...extra,
+                status,
+                path,
+                batch:"start"
+            }));
+        }
+
         let c = 0;
         for (const [id, cell] of [..._cont.entries()]) {
-            c += cell.reset(status, ice([...path, id]), extra);
+            c += cell.reset(status, ice([...path, id]), extra, batched);
         }
 
         if (this.wasDestroyed) { _cont.clear(); }
 
-        handlers.run(ice({
-            ...extra,
-            status,
-            path,
-            isBatch:true
-        }));
+        if (isBatch) {
+            handlers.run(ice({
+                ...extra,
+                status,
+                path,
+                batched:ice(batched),
+                batch:"end"
+            }));
+        }
 
         return c;
     }

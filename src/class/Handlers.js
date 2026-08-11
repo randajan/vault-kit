@@ -2,18 +2,19 @@ import { toFn } from "../tools";
 
 
 export class Handlers {
-    constructor(filter=(ctx, selector)=>true, catcher=(err)=>{}) {
+    constructor(filter=(event, selector)=>true, catcher=(err)=>{}) {
         this._list = [];
 
-        this.run = (ctx)=>{
+        this.run = event=>{
             for (const [fn, selector] of [...this._list]) {
-                if (!filter(ctx, selector)) { continue; }
+                if (!filter(event, selector)) { continue; }
                 let err, ok = true;
-                try { fn(ctx); } catch(error) { err = error; ok = false; }
+                try { fn(event); } catch(error) { err = error; ok = false; }
                 if (!ok) { try { catcher(err); } catch {}; }
             }
+            return event;
         }
-        
+
     }
 
     on(fn, selector) {

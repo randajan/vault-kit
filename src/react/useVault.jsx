@@ -22,7 +22,9 @@ const validateVault = (vault) => {
 
 const createController = (vault, redraw, path=[], autoInit=true) => {
     validateVault(vault);
-    const port = path.length ? vault.at(...path) : vault;
+    const port = vault.at(...path);
+
+    if (port.depth > 0) { throw new Error(`path length must be exactly '${vault.depth}'`); }
 
     let reply, fallback;
 
@@ -41,8 +43,8 @@ const createController = (vault, redraw, path=[], autoInit=true) => {
     });
 
     const cleanUp = port.on(ctx=> {
-        const { status, before, isBatch } = ctx;
-        if (port.hasRemote && !isBatch) {
+        const { status, before } = ctx;
+        if (port.hasRemote) {
             if (status === "init" || status === "expired") { fallback = before.data; port.get(); }
             else if (status === "ready" || status === "error") { fallback = undefined; }
         }

@@ -17,7 +17,7 @@ export class Cell {
 
     isExpired() { return this.expiresAt && (this.expiresAt < Date.now()); }
 
-    onSet(persistent, before={}, path=[], extra={}) {
+    onSet(persistent, before={}, path=[], extra={}, batched=undefined) {
         const { _vault, status, data, error, currentTimeoutId } = this;
         const { ttl, handlers } = _vault;
 
@@ -28,16 +28,20 @@ export class Cell {
             const tid = this.currentTimeoutId = setTimeout(_=>this.pick(path), ttl);
             tid.unref?.();
         }
-        
-        return handlers.run(ice({
+
+        const event = ice({
             ...extra,
             status,
             data,
             error,
             before:ice(before),
             path,
-            isBatch:false
-        }));
+            batch:batched ? "item" : undefined
+        });
+
+        batched?.push(event);
+        
+        return handlers.run(event);
     }
 
     async fetchRemote(status, data, path=[], extra={}) {
@@ -133,7 +137,7 @@ export class Cell {
         return !prom ? push() : (this.prom = this.prom.then(push));
     }
 
-    reset(status, path=[], extra={}) {
+    reset(status, path=[], extra={}, batched=undefined) {
         this.isDestroyed();
 
         const { _vault, data:d, status:s } = this;
@@ -152,7 +156,7 @@ export class Cell {
         delete this.expiresAt;
 
         if (status !== "destroyed") { this.unmountSelf(path); }
-        this.onSet(true, { status:s, data:d }, path, extra);
+        this.onSet(true, { status:s, data:d }, path, extra, batched);
 
         return 1;
     }
