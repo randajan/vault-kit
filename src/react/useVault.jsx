@@ -1,20 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Vault } from "../class/Vault";
 
-/**
- * @preserve
- *
- * @typedef {Object} VaultPort
- * @property {import("../class/Vault").VaultStatus} status Current cell status.
- * @property {*} data Cached data or remote fallback while a refresh is pending.
- * @property {Error|undefined} error Current cell error.
- * @property {*} reply Last result returned by set() or act.*().
- * @property {Function} confirm Clears reply and redraws the hook consumer.
- * @property {(data:*, extra?:Object)=>Promise<*>} set Writes to the bound vault cell.
- * @property {Object} act Action proxy bound to the selected cell.
- * @property {(statuses:string|string[])=>boolean} isStatus Status helper.
- */
-
 const validateVault = (vault) => {
     if (!(vault instanceof Vault)) { throw Error("vault must be instance of Vault"); }
 };
@@ -57,19 +43,6 @@ const createController = (vault, redraw, path=[], autoInit=true) => {
 };
 
 
-/**
- * @preserve
- *
- * React binding for one vault cell.
- *
- * For remote vaults, reset and expiry keep the previous data as a temporary
- * fallback while the hook starts a fresh pull.
- *
- * @param {Vault} vault Vault instance.
- * @param {Array} [path=[]] Cell path.
- * @param {boolean} [autoInit=true] Starts a pull immediately for remote cells.
- * @returns {VaultPort}
- */
 export const useVault = (vault, path=[], autoInit=true)=>{
     const redraw = useState(0)[1];
 

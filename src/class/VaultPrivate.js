@@ -8,22 +8,7 @@ import { Cells } from "./Cells";
 import { Handlers } from "./Handlers";
 import { formatActions, formatPath, formatRemote, formatUnfold } from "../formats";
 
-
-/**
- * @preserve
- *
- * Internal vault state owner.
- *
- * Keeps the public Vault facade small while this class manages the store,
- * remote setup, handlers, and TTL expiry.
- */
 export class VaultPrivate {
-
-    /**
-     * @preserve
-     *
-     * @param {import("./Vault").VaultOptions} opt Vault options.
-     */
     constructor(opt) {
         opt = toObj(opt, "options") || {};
 
@@ -40,14 +25,14 @@ export class VaultPrivate {
         this.trait = toFn(opt.trait, "options.trait") || (data => data);
         this.purge = toFn(opt.purge, "options.purge") || (data => data);
 
-        this.handlers = new Handlers(
-            (ctx, sPath) => {
+        this.handlers = new Handlers({
+            filter:(ctx, sPath) => {
                 if (!sPath.length) { return true; }
                 for (const i in sPath) { if (ctx.path[i] != sPath[i]) { return false; } }
                 return true;
             },
-            toFn(opt.handlersCatch, "options.handlersCatch")
-        );
+            catcher:toFn(opt.handlersCatch, "options.handlersCatch")
+        });
 
         const store = this.store = depth ? new Cells(this, 0) : new Cell(this);
 
